@@ -1,9 +1,12 @@
-use std::fmt::{Display, Formatter};
-
-use rand::Rng;
 use crate::model::border::Border;
-use crate::model::position::CenterPlacement::{Center, HorizontalBorder, Intersection, VerticalBorder};
+use crate::model::position::CenterPlacement::{
+    Center, HorizontalBorder, Intersection, VerticalBorder,
+};
 use crate::model::rectangle::Rectangle;
+use crate::model::vec2::Vec2;
+use rand::Rng;
+use std::fmt::{Display, Formatter};
+use std::ops::Sub;
 
 #[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Copy, Clone, Hash)]
 pub struct Position {
@@ -19,7 +22,20 @@ pub enum CenterPlacement {
     Intersection(Rectangle),
 }
 
+impl CenterPlacement {
+    pub fn get_positions(&self) -> Vec<Position> {
+        match self {
+            Center(p) => vec![p.clone()],
+            VerticalBorder(b) => vec![b.p1(), b.p2()],
+            HorizontalBorder(b) => vec![b.p1(), b.p2()],
+            Intersection(r) => r.corners(),
+        }
+    }
+}
+
 impl Position {
+    pub const ZERO: Position = Position { row: 0, column: 0 };
+
     pub fn new(row: i32, column: i32) -> Position {
         Position { row, column }
     }
@@ -58,6 +74,7 @@ impl Position {
         }
     }
 
+    /// Get positions above, below, and to the left and right of this position
     pub fn adjacent(&self) -> Vec<Position> {
         vec![self.up(), self.right(), self.down(), self.left()]
     }
@@ -146,14 +163,38 @@ mod tests {
 
         #[test]
         fn center_within_cell_should_return_that_cell() {
-            assert_eq!(Position::new(0, 0).get_center_placement(), CenterPlacement::Center(Position::new(0, 0)));
-            assert_eq!(Position::new(0, 2).get_center_placement(), CenterPlacement::Center(Position::new(0, 1)));
-            assert_eq!(Position::new(2, 0).get_center_placement(), CenterPlacement::Center(Position::new(1, 0)));
-            assert_eq!(Position::new(2, 2).get_center_placement(), CenterPlacement::Center(Position::new(1, 1)));
-            assert_eq!(Position::new(10, 10).get_center_placement(), CenterPlacement::Center(Position::new(5, 5)));
-            assert_eq!(Position::new(10, 20).get_center_placement(), CenterPlacement::Center(Position::new(5, 10)));
-            assert_eq!(Position::new(20, 10).get_center_placement(), CenterPlacement::Center(Position::new(10, 5)));
-            assert_eq!(Position::new(20, 20).get_center_placement(), CenterPlacement::Center(Position::new(10, 10)));
+            assert_eq!(
+                Position::new(0, 0).get_center_placement(),
+                CenterPlacement::Center(Position::new(0, 0))
+            );
+            assert_eq!(
+                Position::new(0, 2).get_center_placement(),
+                CenterPlacement::Center(Position::new(0, 1))
+            );
+            assert_eq!(
+                Position::new(2, 0).get_center_placement(),
+                CenterPlacement::Center(Position::new(1, 0))
+            );
+            assert_eq!(
+                Position::new(2, 2).get_center_placement(),
+                CenterPlacement::Center(Position::new(1, 1))
+            );
+            assert_eq!(
+                Position::new(10, 10).get_center_placement(),
+                CenterPlacement::Center(Position::new(5, 5))
+            );
+            assert_eq!(
+                Position::new(10, 20).get_center_placement(),
+                CenterPlacement::Center(Position::new(5, 10))
+            );
+            assert_eq!(
+                Position::new(20, 10).get_center_placement(),
+                CenterPlacement::Center(Position::new(10, 5))
+            );
+            assert_eq!(
+                Position::new(20, 20).get_center_placement(),
+                CenterPlacement::Center(Position::new(10, 10))
+            );
         }
     }
 

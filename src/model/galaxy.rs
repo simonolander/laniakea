@@ -1,10 +1,14 @@
-use crate::model::position::Position;
+use crate::model::border::Border;
+use crate::model::position::{CenterPlacement, Position};
 use crate::model::rectangle::Rectangle;
+use crate::model::vec2::Vec2;
 use petgraph::algo::connected_components;
 use petgraph::graphmap::UnGraphMap;
 use std::cmp::{max, min};
-use std::collections::HashSet;
-use crate::model::border::Border;
+use std::collections::{HashMap, HashSet, LinkedList};
+use std::f64::consts::PI;
+use std::fmt::{Display, Formatter};
+use std::ops::Sub;
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct Galaxy {
@@ -21,16 +25,6 @@ impl Galaxy {
         Galaxy {
             positions: HashSet::new(),
         }
-    }
-
-    pub fn from_positions(positions: impl IntoIterator<Item = Position>) -> Galaxy {
-        Galaxy {
-            positions: positions.into_iter().collect(),
-        }
-    }
-
-    pub fn from_rect(rect: &Rectangle) -> Galaxy {
-        Self::from_positions(rect.positions())
     }
 
     pub fn get_borders(&self) -> impl IntoIterator<Item = Border> {
@@ -174,8 +168,124 @@ impl Galaxy {
         self.positions.insert(p);
     }
 
+    /// Get adjacent positions that belong to the galaxy
+    pub fn get_neighbours(&self, p: &Position) -> Vec<Position> {
+        p.adjacent()
+            .into_iter()
+            .filter(|neighbour| self.contains_position(neighbour))
+            .collect()
+    }
+
     pub fn get_positions(&self) -> impl Iterator<Item = &Position> {
         self.positions.iter()
+    }
+
+    pub fn get_swirl(&self) -> f64 {
+        let hamming_distances = self.get_hamming_distances();
+        let center = Vec2::from(&self.center()) / 2.0;
+        let vectors: HashMap<Position, Vec2> = self
+            .positions
+            .iter()
+            .map(|p| (*p, Vec2::from(p) - center))
+            .collect();
+
+        let mut swirl = 0.0;
+        for p in &self.positions {
+            let v = vectors[&p];
+            let hamming_distance = hamming_distances[&p];
+            if hamming_distance != 0 {
+                self.get_neighbours(&p)
+                    .iter()
+                    .filter(|n| hamming_distances[&n] < hamming_distance)
+                    .map(|parent_position| vectors[&parent_position])
+                    .filter(|parent_vector| !parent_vector.is_zero())
+                    .map(|parent_vector| parent_vector.angle_to(&v))
+                    .for_each(|angle_difference| swirl += angle_difference);
+            }
+        }
+
+        swirl
+    }
+
+    pub fn get_curl(&self) -> f64 {
+        let distances = self.get_hamming_distances();
+        let children_map: HashMap<Position, Vec<Position>> = self
+            .positions
+            .iter()
+            .copied()
+            .map(|p| {
+                let distance = distances[&p];
+                let children: Vec<Position> = self
+                    .get_neighbours(&p)
+                    .into_iter()
+                    .filter(|n| distances[n] == distance + 1)
+                    .collect();
+                (p, children)
+            })
+            .collect();
+        let mut flows: HashMap<Position, Vec2> = HashMap::new();
+        {
+            let center = self.center();
+            let parent = Vec2::from(&center) / 2.0;
+            for child in center.get_center_placement().get_positions() {
+                let v = (Vec2::from(&child) - parent).normalized();
+                *flows.entry(child).or_insert(Vec2::ZERO) += v;
+            }
+        }
+        for (parent, children) in &children_map {
+            let parent = Vec2::from(parent);
+            for child in children {
+                let v = (Vec2::from(child) - parent).normalized();
+                *flows.entry(*child).or_insert(Vec2::ZERO) += v
+            }
+        }
+        for flow in flows.values_mut() {
+            flow.normalize();
+        }
+
+        let curl: f64 = children_map
+            .iter()
+            .map(|(parent, children)| {
+                let parent_flow = flows[&parent];
+                children
+                    .iter()
+                    .map(|child| &flows[child])
+                    .map(|child_flow| parent_flow.angle_to(child_flow))
+                    .sum::<f64>()
+            })
+            .sum();
+
+        curl
+    }
+
+    fn get_hamming_distances(&self) -> HashMap<Position, usize> {
+        let mut queue: LinkedList<Position> = LinkedList::new();
+        let mut hamming_distances: HashMap<Position, usize> = HashMap::new();
+        for p in self.center().get_center_placement().get_positions() {
+            hamming_distances.insert(p, 0);
+            for n in self.get_neighbours(&p) {
+                queue.push_back(n);
+            }
+        }
+        while let Some(p) = queue.pop_front() {
+            if hamming_distances.contains_key(&p) {
+                continue;
+            }
+            let neighbours = self.get_neighbours(&p);
+            let min_neighbour_distance = neighbours
+                .iter()
+                .filter_map(|n| hamming_distances.get(n))
+                .min()
+                .copied()
+                .unwrap();
+            hamming_distances.insert(p, min_neighbour_distance + 1);
+            for n in neighbours {
+                if !hamming_distances.contains_key(&n) {
+                    queue.push_back(n);
+                }
+            }
+        }
+        hamming_distances
     }
 
     /// Returns the rectangles that make up the galaxy, by finding the largest rectangle, subtracting
@@ -257,13 +367,81 @@ impl Galaxy {
     }
 }
 
+impl Display for Galaxy {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let bounds = self.bounding_rectangle();
+        let positions: HashSet<Position> = self
+            .get_positions()
+            .map(|p| Position::new(p.row - bounds.min_row, p.column - bounds.min_column))
+            .collect();
+        for row in 0..=bounds.height() + 1 {
+            for column in 0..=bounds.width() + 1 {
+                let bottom_right = Position::from((row, column));
+                let bottom_left = bottom_right.left();
+                let top_left = bottom_left.up();
+                let top_right = bottom_right.up();
+                let has_top_left = positions.contains(&top_left);
+                let has_top_right = positions.contains(&top_right);
+                let has_bottom_left = positions.contains(&bottom_left);
+                let has_bottom_right = positions.contains(&bottom_right);
+
+                let bar_top = has_top_left != has_top_right;
+                let bar_right = has_top_right != has_bottom_right;
+                let bar_bottom = has_bottom_left != has_bottom_right;
+                let bar_left = has_top_left != has_bottom_left;
+                match (bar_top, bar_right, bar_bottom, bar_left) {
+                    (false, false, false, false) => write!(f, "  ")?,
+                    (false, false, false, true) => write!(f, "╴ ")?,
+                    (false, false, true, false) => write!(f, "╷ ")?,
+                    (false, false, true, true) => write!(f, "┐ ")?,
+                    (false, true, false, false) => write!(f, "╶─")?,
+                    (false, true, false, true) => write!(f, "──")?,
+                    (false, true, true, false) => write!(f, "┌─")?,
+                    (false, true, true, true) => write!(f, "┬─")?,
+                    (true, false, false, false) => write!(f, "╵ ")?,
+                    (true, false, false, true) => write!(f, "┘ ")?,
+                    (true, false, true, false) => write!(f, "│ ")?,
+                    (true, false, true, true) => write!(f, "┤ ")?,
+                    (true, true, false, false) => write!(f, "└─")?,
+                    (true, true, false, true) => write!(f, "┴─")?,
+                    (true, true, true, false) => write!(f, "├─")?,
+                    (true, true, true, true) => write!(f, "┼─")?,
+                }
+            }
+            if row != bounds.height() + 1 {
+                write!(f, "\n")?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl<I, T> From<I> for Galaxy
+where
+    I: IntoIterator<Item = T>,
+    T: Into<Position>,
+{
+    fn from(positions: I) -> Self {
+        Galaxy {
+            positions: positions.into_iter().map(|p| p.into()).collect(),
+        }
+    }
+}
+
+impl From<&Rectangle> for Galaxy {
+    fn from(rect: &Rectangle) -> Self {
+        Self::from(rect.positions())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::model::galaxy::Galaxy;
     use crate::model::position::Position;
 
     fn galaxy(positions: &[(i32, i32)]) -> Galaxy {
-        Galaxy::from_positions(positions.iter().map(|&(row, col)| Position::new(row, col)))
+        Galaxy::from(positions.iter().map(|&p| Position::from(p)))
     }
 
     #[test]
@@ -325,31 +503,20 @@ mod tests {
 
         #[test]
         fn empty_galaxy_should_have_no_rectangles() {
-            let galaxy = Galaxy::from_positions(vec![]);
+            let galaxy = Galaxy::new();
             assert_eq!(galaxy.rectangles(), vec![]);
-        }
-
-        fn galaxy_from_rect(rect: &Rectangle) -> Galaxy {
-            let mut positions = vec![];
-            for row in rect.min_row..rect.max_row {
-                for column in rect.min_column..rect.max_column {
-                    positions.push(Position { row, column });
-                }
-            }
-            Galaxy::from_positions(positions)
         }
 
         proptest! {
             #[test]
             fn rectangle_galaxy_should_have_single_rectangle(rect: Rectangle) {
                 if !rect.positions().is_empty() {
-                    let galaxy = galaxy_from_rect(&rect);
+                    let galaxy = Galaxy::from(&rect);
                     let rects = galaxy.rectangles();
                     assert_eq!(rects.len(), 1);
                     assert_eq!(rects[0], rect);
                 }
             }
-
         }
 
         #[test]
@@ -392,6 +559,228 @@ mod tests {
             .sorted()
             .collect();
             assert_eq!(expected, actual);
+        }
+    }
+
+    mod swirl {
+        use crate::model::galaxy::Galaxy;
+        use crate::model::position::Position;
+        use crate::model::rectangle::Rectangle;
+        use approx::assert_abs_diff_eq;
+        use more_asserts::assert_gt;
+
+        #[test]
+        fn single_cell_should_have_zero_swirl() {
+            let mut galaxy = Galaxy::new();
+            galaxy.add_position(Position::ZERO);
+            assert_eq!(galaxy.get_swirl(), 0.0);
+        }
+
+        #[test]
+        fn rectangular_galaxy_should_have_zero_swirl() {
+            for width in 1..10 {
+                for height in 1..10 {
+                    let galaxy = Galaxy::from(&Rectangle::from(&(width, height)));
+                    let actual_swirl = galaxy.get_swirl();
+                    assert_abs_diff_eq!(actual_swirl, 0.0, epsilon = 1e-8);
+                }
+            }
+        }
+
+        #[test]
+        fn mirror_symmetrical_galaxy_should_have_zero_swirl() {
+            #[rustfmt::skip]
+            let galaxy = Galaxy::from(vec![
+                (0, 0),         (0, 2),
+                (1, 0), (1, 1), (1, 2),
+                (2, 0),         (2, 2),
+            ]);
+            assert_abs_diff_eq!(galaxy.get_swirl(), 0.0, epsilon = 1e-8);
+
+            #[rustfmt::skip]
+            let galaxy = Galaxy::from(vec![
+                (0, 0), (0, 1), (0, 2),
+                        (1, 1),
+                (2, 0), (2, 1), (2, 2),
+            ]);
+            assert_abs_diff_eq!(galaxy.get_swirl(), 0.0, epsilon = 1e-8);
+
+            #[rustfmt::skip]
+            let galaxy = Galaxy::from(vec![
+                (0, 0), (0, 1), (0, 2),         (0, 4), (0, 5), (0, 6),
+                (1, 0),         (1, 2),         (1, 4),         (1, 6),
+                                (2, 2), (2, 3), (2, 4),
+                                (3, 2), (3, 3), (3, 4),
+                (4, 0),         (4, 2),         (4, 4),         (4, 6),
+                (5, 0), (5, 1), (5, 2),         (5, 4), (5, 5), (5, 6),
+            ]);
+            assert_abs_diff_eq!(galaxy.get_swirl(), 0.0, epsilon = 1e-8);
+
+            // #[rustfmt::skip]
+            // let galaxy = Galaxy::from(vec![
+            //     (0, 0), (0, 1), (0, 2), (0, 3), (0, 4), (0, 5), (0, 6), (0, 7), (0, 8), (0, 9),
+            //     (1, 0), (1, 1), (1, 2), (1, 3), (1, 4), (1, 5), (1, 6), (1, 7), (1, 8), (1, 9),
+            //     (2, 0), (2, 1), (2, 2), (2, 3), (2, 4), (2, 5), (2, 6), (2, 7), (2, 8), (2, 9),
+            //     (3, 0), (3, 1), (3, 2), (3, 3), (3, 4), (3, 5), (3, 6), (3, 7), (3, 8), (3, 9),
+            //     (4, 0), (4, 1), (4, 2), (4, 3), (4, 4), (4, 5), (4, 6), (4, 7), (4, 8), (4, 9),
+            //     (5, 0), (5, 1), (5, 2), (5, 3), (5, 4), (5, 5), (5, 6), (5, 7), (5, 8), (5, 9),
+            //     (6, 0), (6, 1), (6, 2), (6, 3), (6, 4), (6, 5), (6, 6), (6, 7), (6, 8), (6, 9),
+            //     (7, 0), (7, 1), (7, 2), (7, 3), (7, 4), (7, 5), (7, 6), (7, 7), (7, 8), (7, 9),
+            //     (8, 0), (8, 1), (8, 2), (8, 3), (8, 4), (8, 5), (8, 6), (8, 7), (8, 8), (8, 9),
+            //     (9, 0), (9, 1), (9, 2), (9, 3), (9, 4), (9, 5), (9, 6), (9, 7), (9, 8), (9, 9),
+            // ]);
+        }
+
+        #[test]
+        fn s_shaped_galaxy_should_have_positive_swirl() {
+            #[rustfmt::skip]
+            let g1 = Galaxy::from(vec![
+                (0, 0),
+                (1, 0), (1, 1),
+                        (2, 1),
+            ]);
+            assert_gt!(g1.get_swirl(), 0.0);
+
+            #[rustfmt::skip]
+            let g2 = Galaxy::from(vec![
+                (0, 0),
+                (1, 0),
+                (2, 0), (2, 1), (2, 2),
+                                (3, 2),
+                                (4, 2),
+            ]);
+            assert_eq!(g2.get_swirl(), g1.get_swirl());
+
+            #[rustfmt::skip]
+            let g3 = Galaxy::from(vec![
+                (0, 0), (0, 1),
+                (1, 0),
+                (2, 0), (2, 1), (2, 2),
+                                (3, 2),
+                        (4, 1), (4, 2),
+            ]);
+            assert_gt!(g3.get_swirl(), g2.get_swirl());
+
+            #[rustfmt::skip]
+            let g4 = Galaxy::from(vec![
+                (0, 0), (0, 1), (0, 2),
+                (1, 0),
+                (2, 0), (2, 1), (2, 2),
+                                (3, 2),
+                (4, 0), (4, 1), (4, 2),
+            ]);
+            assert_gt!(g4.get_swirl(), g3.get_swirl());
+        }
+    }
+
+    mod curl {
+        use crate::model::galaxy::Galaxy;
+        use crate::model::position::Position;
+        use crate::model::rectangle::Rectangle;
+        use approx::assert_abs_diff_eq;
+        use more_asserts::assert_gt;
+
+        #[test]
+        fn single_cell_should_have_zero_curl() {
+            let mut galaxy = Galaxy::new();
+            galaxy.add_position(Position::ZERO);
+            assert_eq!(galaxy.get_curl(), 0.0);
+        }
+
+        #[test]
+        fn rectangular_galaxy_should_have_zero_curl() {
+            for width in 1..10 {
+                for height in 1..10 {
+                    let galaxy = Galaxy::from(&Rectangle::from(&(width, height)));
+                    let actual_curl = galaxy.get_curl();
+                    assert_abs_diff_eq!(actual_curl, 0.0, epsilon = 1e-8);
+                }
+            }
+        }
+
+        #[test]
+        fn mirror_symmetrical_galaxy_should_have_zero_curl() {
+            #[rustfmt::skip]
+            let galaxy = Galaxy::from(vec![
+                (0, 0),         (0, 2),
+                (1, 0), (1, 1), (1, 2),
+                (2, 0),         (2, 2),
+            ]);
+            assert_abs_diff_eq!(galaxy.get_curl(), 0.0, epsilon = 1e-8);
+
+            #[rustfmt::skip]
+            let galaxy = Galaxy::from(vec![
+                (0, 0), (0, 1), (0, 2),
+                        (1, 1),
+                (2, 0), (2, 1), (2, 2),
+            ]);
+            assert_abs_diff_eq!(galaxy.get_curl(), 0.0, epsilon = 1e-8);
+
+            #[rustfmt::skip]
+            let galaxy = Galaxy::from(vec![
+                (0, 0), (0, 1), (0, 2),         (0, 4), (0, 5), (0, 6),
+                (1, 0),         (1, 2),         (1, 4),         (1, 6),
+                                (2, 2), (2, 3), (2, 4),
+                                (3, 2), (3, 3), (3, 4),
+                (4, 0),         (4, 2),         (4, 4),         (4, 6),
+                (5, 0), (5, 1), (5, 2),         (5, 4), (5, 5), (5, 6),
+            ]);
+            assert_abs_diff_eq!(galaxy.get_curl(), 0.0, epsilon = 1e-8);
+
+            // #[rustfmt::skip]
+            // let galaxy = Galaxy::from(vec![
+            //     (0, 0), (0, 1), (0, 2), (0, 3), (0, 4), (0, 5), (0, 6), (0, 7), (0, 8), (0, 9),
+            //     (1, 0), (1, 1), (1, 2), (1, 3), (1, 4), (1, 5), (1, 6), (1, 7), (1, 8), (1, 9),
+            //     (2, 0), (2, 1), (2, 2), (2, 3), (2, 4), (2, 5), (2, 6), (2, 7), (2, 8), (2, 9),
+            //     (3, 0), (3, 1), (3, 2), (3, 3), (3, 4), (3, 5), (3, 6), (3, 7), (3, 8), (3, 9),
+            //     (4, 0), (4, 1), (4, 2), (4, 3), (4, 4), (4, 5), (4, 6), (4, 7), (4, 8), (4, 9),
+            //     (5, 0), (5, 1), (5, 2), (5, 3), (5, 4), (5, 5), (5, 6), (5, 7), (5, 8), (5, 9),
+            //     (6, 0), (6, 1), (6, 2), (6, 3), (6, 4), (6, 5), (6, 6), (6, 7), (6, 8), (6, 9),
+            //     (7, 0), (7, 1), (7, 2), (7, 3), (7, 4), (7, 5), (7, 6), (7, 7), (7, 8), (7, 9),
+            //     (8, 0), (8, 1), (8, 2), (8, 3), (8, 4), (8, 5), (8, 6), (8, 7), (8, 8), (8, 9),
+            //     (9, 0), (9, 1), (9, 2), (9, 3), (9, 4), (9, 5), (9, 6), (9, 7), (9, 8), (9, 9),
+            // ]);
+        }
+
+        #[test]
+        fn s_shaped_galaxy_should_have_positive_curl() {
+            #[rustfmt::skip]
+            let g1 = Galaxy::from(vec![
+                (0, 0),
+                (1, 0), (1, 1),
+                        (2, 1),
+            ]);
+            assert_gt!(g1.get_curl(), 0.0);
+
+            #[rustfmt::skip]
+            let g2 = Galaxy::from(vec![
+                (0, 0),
+                (1, 0),
+                (2, 0), (2, 1), (2, 2),
+                                (3, 2),
+                                (4, 2),
+            ]);
+            assert_eq!(g2.get_curl(), g1.get_curl());
+
+            #[rustfmt::skip]
+            let g3 = Galaxy::from(vec![
+                (0, 0), (0, 1),
+                (1, 0),
+                (2, 0), (2, 1), (2, 2),
+                                (3, 2),
+                        (4, 1), (4, 2),
+            ]);
+            assert_gt!(g3.get_curl(), g2.get_curl());
+
+            #[rustfmt::skip]
+            let g4 = Galaxy::from(vec![
+                (0, 0), (0, 1), (0, 2),
+                (1, 0),
+                (2, 0), (2, 1), (2, 2),
+                                (3, 2),
+                (4, 0), (4, 1), (4, 2),
+            ]);
+            assert_eq!(g4.get_curl(), g3.get_curl());
         }
     }
 }

@@ -40,7 +40,7 @@ impl Universe {
 
             universe = next_universes
                 .into_iter()
-                .min_by_key(|universe| universe.get_score())
+                .max_by_key(|universe| universe.get_score())
                 .unwrap_or(universe);
         }
         assert!(universe.is_valid());
@@ -182,50 +182,56 @@ impl Universe {
     pub fn get_score(&self) -> i64 {
         let mut score: i64 = 0;
 
-        // Add points for long, straight, horizontal borders
+        // Penalize long, straight, horizontal borders
         for row in 1..self.height as i32 {
             let mut current_length: i64 = 0;
             for col in 0..self.width as i32 {
                 let up = Position::new(row - 1, col);
                 let down = Position::new(row, col);
                 if self.are_neighbours(&up, &down) {
-                    score += current_length.pow(2);
+                    score -= current_length.pow(2);
                     current_length = 0;
                 } else {
                     current_length += 1;
                 }
             }
-            score += current_length.pow(2);
+            score -= current_length.pow(2);
         }
 
-        // Add points for long, straight, vertical borders
+        // Penalize long, straight, vertical borders
         for col in 1..self.width as i32 {
             let mut current_length: i64 = 0;
             for row in 0..self.height as i32 {
                 let left = Position::new(row, col - 1);
                 let right = Position::new(row, col);
                 if self.are_neighbours(&left, &right) {
-                    score += current_length.pow(2);
+                    score -= current_length.pow(2);
                     current_length = 0;
                 } else {
                     current_length += 1;
                 }
             }
-            score += current_length.pow(2);
+            score -= current_length.pow(2);
         }
 
         let galaxies = self.get_galaxies();
 
-        // Add points for big rectangles
+        // Penalize big rectangles
         for galaxy in &galaxies {
             for rect in galaxy.rectangles() {
                 let area = rect.area() as i64;
-                score += area.pow(2);
+                score -= area.pow(2);
             }
         }
 
-        // Add points for many galaxies
-        score += 3 * galaxies.len() as i64;
+        // Penalize many galaxies
+        score -= 3 * galaxies.len() as i64;
+
+        // Reward galaxies with high swirl
+        score += galaxies.iter().map(|g| g.get_swirl().abs().powi(2)).sum::<f64>() as i64;
+
+        // Reward galaxies with high curl
+        score += galaxies.iter().map(|g| g.get_swirl().abs().powi(2)).sum::<f64>() as i64;
 
         score
     }
@@ -282,7 +288,7 @@ impl Universe {
 
     pub fn get_galaxy(&self, p: &Position) -> Galaxy {
         let search = Dfs::new(&self.graph, *p);
-        Galaxy::from_positions(search.iter(&self.graph))
+        Galaxy::from(search.iter(&self.graph))
     }
 
     pub fn is_valid(&self) -> bool {

@@ -115,7 +115,7 @@ impl Board {
                     queue.insert(neighbour);
                 }
             }
-            galaxies.push(Galaxy::from_positions(component));
+            galaxies.push(Galaxy::from(component));
         }
 
         galaxies

@@ -25,3 +25,5 @@ features = ["Window", "Document", "HtmlElement", "MouseEvent"]
 # These crates are used for running unit tests.
 [dev-dependencies]
 proptest = "1.6.0"
+approx = "0.5.1"
+more-asserts = "0.3.1"
