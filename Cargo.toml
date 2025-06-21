@@ -12,15 +12,14 @@ repository = "https://github.com/simonolander/vintergatan.git"
 
 [dependencies]
 itertools = "0.13.0"
-petgraph = "0.6.5"
 rand = "0.8.5"
 getrandom = { version = "0.2.15", features = ["js"] }
 console_error_panic_hook = "0.1.7"
+ordered-float = "5.0.0"
 
 [dependencies.web-sys]
 version = "0.3.76"
 features = ["Window", "Document", "HtmlElement", "MouseEvent"]
-
 
 # These crates are used for running unit tests.
 [dev-dependencies]

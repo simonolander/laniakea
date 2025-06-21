@@ -3,10 +3,8 @@ use crate::model::position::CenterPlacement::{
     Center, HorizontalBorder, Intersection, VerticalBorder,
 };
 use crate::model::rectangle::Rectangle;
-use crate::model::vec2::Vec2;
 use rand::Rng;
 use std::fmt::{Display, Formatter};
-use std::ops::Sub;
 
 #[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Copy, Clone, Hash)]
 pub struct Position {

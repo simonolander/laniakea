@@ -1,14 +1,11 @@
 use crate::model::border::Border;
-use crate::model::position::{CenterPlacement, Position};
+use crate::model::position::Position;
 use crate::model::rectangle::Rectangle;
 use crate::model::vec2::Vec2;
-use petgraph::algo::connected_components;
-use petgraph::graphmap::UnGraphMap;
+use itertools::Itertools;
 use std::cmp::{max, min};
-use std::collections::{HashMap, HashSet, LinkedList};
-use std::f64::consts::PI;
+use std::collections::{HashMap, HashSet, LinkedList, VecDeque};
 use std::fmt::{Display, Formatter};
-use std::ops::Sub;
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct Galaxy {
@@ -21,6 +18,24 @@ pub struct Galaxy {
 /// - It must contain its center
 /// - It must be rotationally symmetric
 impl Galaxy {
+    /// Create a galaxy from a string, where non-space characters
+    /// are interpreted as belonging to the galaxy.
+    pub fn from_string(string: &str) -> Self {
+        string
+            .lines()
+            .enumerate()
+            .flat_map(|(row, line)| {
+                line.chars().enumerate().filter_map(move |(column, c)| {
+                    if c != ' ' {
+                        Some(Position::from((row, column)))
+                    } else {
+                        None
+                    }
+                })
+            })
+            .collect()
+    }
+
     pub fn new() -> Galaxy {
         Galaxy {
             positions: HashSet::new(),
@@ -96,19 +111,22 @@ impl Galaxy {
     }
 
     pub fn is_connected(&self) -> bool {
-        if self.positions.is_empty() {
-            return true;
-        }
-        let mut graph = UnGraphMap::new();
-        for p in self.positions.iter() {
-            graph.add_node(*p);
-            for adjacent in p.adjacent() {
-                if self.contains_position(&adjacent) {
-                    graph.add_edge(adjacent, *p, ());
-                }
+        if let Some(first) = self.positions.iter().next() {
+            let mut remaining: HashSet<&Position> = self.positions.iter().collect();
+            remaining.remove(first);
+            let mut queue: VecDeque<Position> = VecDeque::new();
+            queue.push_back(*first);
+            while let Some(current) = queue.pop_front() {
+                self.get_neighbours(&current)
+                    .into_iter()
+                    .filter(|p| remaining.remove(p))
+                    .for_each(|p| queue.push_back(p));
             }
+            remaining.is_empty()
+        } else {
+            // Galaxy contains no positions
+            true
         }
-        connected_components(&graph) == 1
     }
 
     pub fn is_empty(&self) -> bool {
@@ -191,12 +209,12 @@ impl Galaxy {
 
         let mut swirl = 0.0;
         for p in &self.positions {
-            let v = vectors[&p];
-            let hamming_distance = hamming_distances[&p];
+            let hamming_distance = hamming_distances[p];
             if hamming_distance != 0 {
-                self.get_neighbours(&p)
-                    .iter()
-                    .filter(|n| hamming_distances[&n] < hamming_distance)
+                let v = vectors[p];
+                self.get_neighbours(p)
+                    .into_iter()
+                    .filter(|n| hamming_distances[n] < hamming_distance)
                     .map(|parent_position| vectors[&parent_position])
                     .filter(|parent_vector| !parent_vector.is_zero())
                     .map(|parent_vector| parent_vector.angle_to(&v))
@@ -256,6 +274,26 @@ impl Galaxy {
             .sum();
 
         curl
+    }
+
+    /// The sum for each arm of the galaxy, of
+    /// how many times the arm turns around the center of the galaxy
+    fn get_winding_number(&self) -> f64 {
+        0.0
+    }
+
+    fn get_spanning_tree(&self) {
+        let bound = self.get_bounding_rectangle();
+        bound;
+    }
+
+    fn get_bounding_rectangle(&self) -> Rectangle {
+        Rectangle::new(
+            self.positions.iter().map(|p| p.row).min().unwrap_or(0),
+            self.positions.iter().map(|p| p.row).max().unwrap_or(0),
+            self.positions.iter().map(|p| p.column).min().unwrap_or(0),
+            self.positions.iter().map(|p| p.column).max().unwrap_or(0),
+        )
     }
 
     fn get_hamming_distances(&self) -> HashMap<Position, usize> {
@@ -435,6 +473,12 @@ impl From<&Rectangle> for Galaxy {
     }
 }
 
+impl FromIterator<Position> for Galaxy {
+    fn from_iter<I: IntoIterator<Item = Position>>(iter: I) -> Self {
+        Galaxy::from(iter)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::model::galaxy::Galaxy;
@@ -568,6 +612,7 @@ mod tests {
         use crate::model::rectangle::Rectangle;
         use approx::assert_abs_diff_eq;
         use more_asserts::assert_gt;
+        use std::f64::consts::PI;
 
         #[test]
         fn single_cell_should_have_zero_swirl() {
@@ -671,6 +716,78 @@ mod tests {
             ]);
             assert_gt!(g4.get_swirl(), g3.get_swirl());
         }
+
+        #[test]
+        fn known_shapes() {
+            let galaxy = Galaxy::from_string(
+                "
+                ▉
+                ▉▉
+                 ▉
+                ",
+            );
+            assert_eq!(galaxy.get_swirl(), 2f64.atan2(1.) * 2.);
+            let galaxy = Galaxy::from_string(
+                "
+                 ▉▉
+                ▉▉
+                ",
+            );
+            assert_eq!(galaxy.get_swirl(), 2f64.atan2(1.) * 2.);
+            let galaxy = Galaxy::from_string(
+                "
+                ▉ ▉▉▉
+                ▉▉▉ ▉
+                ",
+            );
+            assert_abs_diff_eq!(
+                galaxy.get_swirl(),
+                2. * (PI / 2.0 + 1f64.atan2(4.)),
+                epsilon = 1e-8
+            );
+            let galaxy = Galaxy::from_string(
+                "
+                  ▉▉▉
+                ▉ ▉ ▉
+                ▉▉▉
+                ",
+            );
+            assert_abs_diff_eq!(galaxy.get_swirl(), PI, epsilon = 1e-8);
+            let galaxy = Galaxy::from_string(
+                "
+                ▉
+                ▉ ▉▉▉
+                ▉ ▉ ▉
+                ▉▉▉ ▉
+                    ▉
+                ",
+            );
+            assert_abs_diff_eq!(galaxy.get_swirl(), PI * 1.5, epsilon = 1e-8);
+            let galaxy = Galaxy::from_string(
+                "
+                ▉▉▉
+                ▉
+                ▉ ▉▉▉
+                ▉ ▉ ▉
+                ▉▉▉ ▉
+                    ▉
+                  ▉▉▉
+                ",
+            );
+            assert_abs_diff_eq!(galaxy.get_swirl(), PI * 2.0, epsilon = 1e-8);
+            let galaxy = Galaxy::from_string(
+                "
+                 ▉▉▉
+                ▉▉
+                ▉▉ ▉▉▉
+                ▉▉ ▉ ▉▉
+                 ▉▉▉ ▉▉
+                     ▉▉
+                   ▉▉▉
+                ",
+            );
+            assert_gt!(galaxy.get_swirl(), PI * 2.0,);
+        }
     }
 
     mod curl {
@@ -679,6 +796,7 @@ mod tests {
         use crate::model::rectangle::Rectangle;
         use approx::assert_abs_diff_eq;
         use more_asserts::assert_gt;
+        use std::f64::consts::PI;
 
         #[test]
         fn single_cell_should_have_zero_curl() {
@@ -781,6 +899,69 @@ mod tests {
                 (4, 0), (4, 1), (4, 2),
             ]);
             assert_eq!(g4.get_curl(), g3.get_curl());
+        }
+
+        #[test]
+        fn known_shapes() {
+            assert_abs_diff_eq!(
+                Galaxy::from_string(
+                    "
+                     ▉▉
+                    ▉▉
+                    ",
+                )
+                .get_curl(),
+                PI,
+                epsilon = 1e-8
+            );
+            assert_abs_diff_eq!(
+                Galaxy::from_string(
+                    "
+                    ▉▉
+                     ▉▉
+                    ",
+                )
+                .get_curl(),
+                -PI,
+                epsilon = 1e-8
+            );
+            assert_abs_diff_eq!(
+                Galaxy::from_string(
+                    "
+                      ▉▉▉
+                    ▉▉▉
+                    ",
+                )
+                .get_curl(),
+                PI,
+                epsilon = 1e-8
+            );
+            assert_abs_diff_eq!(
+                Galaxy::from_string(
+                    "
+                    ▉ ▉▉▉
+                    ▉▉▉ ▉
+                    ",
+                )
+                .get_curl(),
+                2.0 * PI,
+                epsilon = 1e-8
+            );
+            assert_abs_diff_eq!(
+                Galaxy::from_string(
+                    "
+                    ▉▉▉▉▉
+                    ▉
+                    ▉ ▉▉▉
+                    ▉▉▉ ▉
+                        ▉
+                    ▉▉▉▉▉
+                    ",
+                )
+                .get_curl(),
+                3.0 * PI,
+                epsilon = 1e-8
+            );
         }
     }
 }

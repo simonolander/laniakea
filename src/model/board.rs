@@ -4,15 +4,13 @@ use crate::model::galaxy::Galaxy;
 use crate::model::objective::Objective;
 use crate::model::position::{CenterPlacement, Position};
 use itertools::Itertools;
-use petgraph::graphmap::UnGraphMap;
-use petgraph::visit::{FilterEdge, Visitable};
 use std::collections::{BTreeSet, HashMap, HashSet};
 
 #[derive(Clone, Debug)]
 pub struct Board {
     width: usize,
     height: usize,
-    graph: UnGraphMap<Position, ()>,
+    borders: HashSet<Border>,
 }
 
 impl Board {
@@ -20,7 +18,7 @@ impl Board {
         Board {
             width,
             height,
-            graph: Default::default(),
+            borders: HashSet::new(),
         }
     }
 
@@ -56,8 +54,7 @@ impl Board {
         debug_assert!(p1.is_adjacent_to(&p2));
         debug_assert!(self.contains(&p1));
         debug_assert!(self.contains(&p2));
-        let result = self.graph.add_edge(p1, p2, ());
-        result.is_none()
+        self.borders.insert(Border::new(p1, p2))
     }
 
     /// Removes the wall between [p1] and [p2], if it exists. Returns true if the wall existed
@@ -65,13 +62,12 @@ impl Board {
         debug_assert!(p1.is_adjacent_to(&p2));
         debug_assert!(self.contains(&p1));
         debug_assert!(self.contains(&p2));
-        let result = self.graph.remove_edge(p1, p2);
-        result.is_some()
+        self.borders.remove(&Border::new(p1, p2))
     }
 
     /// Returns whether there is a wall between p1 and p2
     pub fn is_wall(&self, p1: Position, p2: Position) -> bool {
-        self.graph.contains_edge(p1, p2)
+        self.borders.contains(&Border::new(p1, p2))
     }
 
     /// Toggles the wall between [p1] and [p2], returns true if there's a wall after the toggle
@@ -86,7 +82,7 @@ impl Board {
     }
 
     pub fn get_borders(&self) -> impl Iterator<Item = Border> + use<'_> {
-        self.graph.all_edges().map(|(p1, p2, _)| (p1, p2).into())
+        self.borders.iter().copied()
     }
 
     fn get_galaxies(&self) -> Vec<Galaxy> {

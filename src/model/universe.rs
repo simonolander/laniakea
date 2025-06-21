@@ -1,27 +1,30 @@
 use crate::model::galaxy::Galaxy;
 use crate::model::position::Position;
-use petgraph::data::Build;
-use petgraph::graphmap::UnGraphMap;
-use petgraph::visit::{Dfs, Walker};
+use itertools::Itertools;
 use rand::prelude::SliceRandom;
 use rand::rngs::StdRng;
 use rand::{random, Rng, SeedableRng};
-use std::collections::BTreeSet;
 use std::fmt::{Display, Formatter};
+use std::ops::{Index, IndexMut};
+use ordered_float::OrderedFloat;
 
 #[derive(Clone, Debug)]
 pub struct Universe {
-    width: usize,
-    height: usize,
-    graph: UnGraphMap<Position, ()>,
+    grid: Vec<Vec<usize>>,
 }
 
 impl Universe {
-    pub fn width(&self) -> usize {
-        self.width
+    fn new(width: usize, height: usize) -> Self {
+        let mut grid = vec![vec![0; width]; height];
+        for row in 0..height {
+            for col in 0..width {
+                grid[row][col] = row * width + col;
+            }
+        }
+        Universe { grid }
     }
 
-    pub fn generate(width: usize, height: usize) -> Universe {
+    pub fn generate(width: usize, height: usize) -> Self {
         let mut universe = Universe::new(width, height);
         let iterations = width * height * 10;
         let branches = 5;
@@ -40,32 +43,15 @@ impl Universe {
 
             universe = next_universes
                 .into_iter()
-                .max_by_key(|universe| universe.get_score())
+                .max_by_key(|universe| OrderedFloat(universe.get_score()))
                 .unwrap_or(universe);
         }
         assert!(universe.is_valid());
         universe
     }
-}
-
-impl Universe {
-    pub fn new(width: usize, height: usize) -> Universe {
-        let mut graph: UnGraphMap<Position, ()> = UnGraphMap::new();
-        for row in 0..height {
-            for column in 0..width {
-                let position = Position::from((row, column));
-                graph.add_node(position);
-            }
-        }
-        Universe {
-            width,
-            height,
-            graph,
-        }
-    }
 
     fn generate_step(&mut self, rng: &mut impl Rng) -> bool {
-        // First we pick a random position in the universe
+        // First, we pick a random position in the universe
         let p1 = self.random_position(rng);
 
         // Then we pick one of the adjacent positions that is not already a neighbour
@@ -103,9 +89,10 @@ impl Universe {
                 }
                 if p3_candidates.is_empty() {
                     None
-                }
-                else {
-                    p3_candidates.get(rng.gen_range(0..p3_candidates.len())).cloned()
+                } else {
+                    p3_candidates
+                        .get(rng.gen_range(0..p3_candidates.len()))
+                        .cloned()
                 }
             };
 
@@ -124,8 +111,7 @@ impl Universe {
                 self.make_neighbours(&p1, &p2);
                 self.make_neighbours(&p1, &p3);
                 true
-            }
-            else {
+            } else {
                 // No candidates for p3 found to make g1 with p2 symmetric
                 false
             }
@@ -157,61 +143,95 @@ impl Universe {
         }
     }
 
-    /// Returns a list of galaxies in this universe, in no particular order
-    pub fn get_galaxies(&self) -> Vec<Galaxy> {
-        let mut galaxies: Vec<Galaxy> = Vec::new();
-        let mut remaining_positions: BTreeSet<Position> = self.graph.nodes().collect();
-        while let Some(position) = remaining_positions.first() {
-            let galaxy = self.get_galaxy(position);
-            for p in galaxy.get_positions() {
-                remaining_positions.remove(p);
-            }
-            galaxies.push(galaxy);
+    fn get_max_id(&self) -> usize {
+        *self.grid.iter().flatten().max().unwrap_or(&0)
+    }
+
+    fn get_ids(&self) -> impl Iterator<Item = &usize> {
+        self.grid.iter().flatten()
+    }
+
+    fn get_entries(&self) -> impl Iterator<Item = (Position, usize)> + '_ {
+        self.grid.iter().enumerate().flat_map(|(row_index, row)| {
+            row.iter()
+                .enumerate()
+                .map(move |(column_index, id)| (Position::from((row_index, column_index)), *id))
+        })
+    }
+
+    fn get_width(&self) -> usize {
+        self.grid.first().map(|row| row.len()).unwrap_or(0)
+    }
+
+    fn get_height(&self) -> usize {
+        self.grid.len()
+    }
+
+    fn get_next_available_id(&self) -> usize {
+        let size = self.get_width() * self.get_height();
+        let mut id_in_use = vec![false; size];
+        for &id in self.get_ids() {
+            id_in_use[id] = true;
         }
-        galaxies
+        for (id, in_use) in id_in_use.into_iter().enumerate() {
+            if !in_use {
+                return id;
+            }
+        }
+        size
+    }
+
+    /// Returns a list of galaxies in this universe, in no particular order,
+    /// by grouping together all cells that have the same id
+    pub fn get_galaxies(&self) -> Vec<Galaxy> {
+        self.get_entries()
+            .map(|(a, b)| (b, a))
+            .into_group_map()
+            .into_values()
+            .map(|positions| Galaxy::from(positions))
+            .collect()
     }
 
     /// Make p have no neighbours
     pub fn remove_all_neighbours(&mut self, p: &Position) {
-        for adjacent_position in self.adjacent_positions(p) {
-            self.graph.remove_edge(*p, adjacent_position);
-        }
+        self[p] = self.get_next_available_id();
     }
 
     /// Metric of how "cool" is the universe is. Lower is better.
-    pub fn get_score(&self) -> i64 {
-        let mut score: i64 = 0;
+    pub fn get_score(&self) -> f64 {
+        let mut score: f64 = 0.;
 
         // Penalize long, straight, horizontal borders
-        for row in 1..self.height as i32 {
-            let mut current_length: i64 = 0;
-            for col in 0..self.width as i32 {
+        let straight_line_penalty = 3.5;
+        for row in 1..self.get_height() as i32 {
+            let mut current_length: f64 = 0.;
+            for col in 0..self.get_width() as i32 {
                 let up = Position::new(row - 1, col);
                 let down = Position::new(row, col);
                 if self.are_neighbours(&up, &down) {
-                    score -= current_length.pow(2);
-                    current_length = 0;
+                    score -= current_length.powf(straight_line_penalty);
+                    current_length = 0.;
                 } else {
-                    current_length += 1;
+                    current_length += 1.;
                 }
             }
-            score -= current_length.pow(2);
+            score -= current_length.powf(straight_line_penalty);
         }
 
         // Penalize long, straight, vertical borders
-        for col in 1..self.width as i32 {
-            let mut current_length: i64 = 0;
-            for row in 0..self.height as i32 {
+        for col in 1..self.get_width() as i32 {
+            let mut current_length: f64 = 0.;
+            for row in 0..self.get_height() as i32 {
                 let left = Position::new(row, col - 1);
                 let right = Position::new(row, col);
                 if self.are_neighbours(&left, &right) {
-                    score -= current_length.pow(2);
-                    current_length = 0;
+                    score -= current_length.powf(straight_line_penalty);
+                    current_length = 0.;
                 } else {
-                    current_length += 1;
+                    current_length += 1.;
                 }
             }
-            score -= current_length.pow(2);
+            score -= current_length.powf(straight_line_penalty);
         }
 
         let galaxies = self.get_galaxies();
@@ -219,59 +239,48 @@ impl Universe {
         // Penalize big rectangles
         for galaxy in &galaxies {
             for rect in galaxy.rectangles() {
-                let area = rect.area() as i64;
-                score -= area.pow(2);
+                let area = rect.area() as f64;
+                score -= area.powf(2.);
             }
         }
 
         // Penalize many galaxies
-        score -= 3 * galaxies.len() as i64;
+        score -= 3. * galaxies.len() as f64;
 
         // Reward galaxies with high swirl
-        score += galaxies.iter().map(|g| g.get_swirl().abs().powi(2)).sum::<f64>() as i64;
-
-        // Reward galaxies with high curl
-        score += galaxies.iter().map(|g| g.get_swirl().abs().powi(2)).sum::<f64>() as i64;
+        score += 10. * galaxies
+            .iter()
+            .map(|g| g.get_swirl().abs().powf(2.5))
+            .sum::<f64>();
 
         score
     }
 
-    pub fn add_galaxy(&mut self, galaxy: &Galaxy) {
-        for p1 in galaxy.get_positions() {
-            for p2 in &self.adjacent_positions(p1) {
-                if galaxy.contains_position(p2) {
-                    self.graph.add_edge(*p1, *p2, ());
-                }
-            }
-        }
-    }
-
-    /**
-     * Joins p2 into the galaxy of p1, removing any previous edges from p2,
-     * and adding edges to all neighbouring positions in the galaxy of p1.
-     * Returns whether p1 and p2 were successfully made neighbours.
-     */
+    /// Joins p2 into the galaxy of p1, removing it from its previous galaxy.
+    /// Does not preserve galaxy validness.
     pub fn make_neighbours(&mut self, p1: &Position, p2: &Position) {
-        let g1 = self.get_galaxy(p1);
-        for p2_adjacent in self.adjacent_positions(p2) {
-            if g1.contains_position(&p2_adjacent) {
-                self.graph.add_edge(*p2, p2_adjacent, ());
-            } else {
-                self.graph.remove_edge(*p2, p2_adjacent);
-            }
-        }
+        self[p2] = self[p1];
     }
 
     pub fn random_position(&self, rng: &mut impl Rng) -> Position {
-        Position::random(self.width, self.height, rng)
+        Position::random(self.get_width(), self.get_height(), rng)
     }
 
     pub fn adjacent_positions(&self, p: &Position) -> Vec<Position> {
-        vec![p.left(), p.up(), p.right(), p.down()]
-            .iter()
-            .copied()
-            .filter(|&adjacent_position| self.graph.contains_node(adjacent_position))
-            .collect()
+        let mut adjacent = Vec::with_capacity(4);
+        if p.row > 0 {
+            adjacent.push(p.up())
+        }
+        if p.row < self.get_height() as i32 - 1 {
+            adjacent.push(p.down())
+        }
+        if p.column > 0 {
+            adjacent.push(p.left())
+        }
+        if p.column < self.get_width() as i32 - 1 {
+            adjacent.push(p.right())
+        }
+        adjacent
     }
 
     pub fn adjacent_non_neighbours(&self, p: &Position) -> Vec<Position> {
@@ -283,12 +292,15 @@ impl Universe {
     }
 
     pub fn are_neighbours(&self, p1: &Position, p2: &Position) -> bool {
-        self.graph.contains_edge(*p1, *p2)
+        self.is_inside(p1) && self.is_inside(p2) && self[p1] == self[p2]
     }
 
     pub fn get_galaxy(&self, p: &Position) -> Galaxy {
-        let search = Dfs::new(&self.graph, *p);
-        Galaxy::from(search.iter(&self.graph))
+        let p_id = &self[p];
+        self.get_entries()
+            .filter(|(p, id)| id == p_id)
+            .map(|(p, _)| p)
+            .collect()
     }
 
     pub fn is_valid(&self) -> bool {
@@ -299,8 +311,12 @@ impl Universe {
         !self.is_inside(p)
     }
 
+    /// Return true iff the position is within the bounds of the universe
     pub fn is_inside(&self, p: &Position) -> bool {
-        self.graph.contains_node(*p)
+        p.row >= 0
+            && p.row < self.get_height() as i32
+            && p.column >= 0
+            && p.column < self.get_width() as i32
     }
 
     pub fn render(&self) -> String {
@@ -308,16 +324,16 @@ impl Universe {
     }
 
     pub fn get_positions(&self) -> impl Iterator<Item = Position> + '_ {
-        (0..self.height)
-            .flat_map(move |row| (0..self.width).map(move |col| (row, col)))
+        (0..self.get_height())
+            .flat_map(move |row| (0..self.get_width()).map(move |col| (row, col)))
             .map(|t| Position::from(t))
     }
 }
 
 impl Display for Universe {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        for row in 0..=self.height {
-            for column in 0..=self.width {
+        for row in 0..=self.get_height() {
+            for column in 0..=self.get_width() {
                 let bottom_right = Position::from((row, column));
                 let bottom_left = bottom_right.left();
                 let top_left = bottom_left.up();
@@ -325,9 +341,9 @@ impl Display for Universe {
 
                 let bar_top = row != 0 && !self.are_neighbours(&top_left, &top_right);
                 let bar_right =
-                    column != self.width && !self.are_neighbours(&top_right, &bottom_right);
+                    column != self.get_width() && !self.are_neighbours(&top_right, &bottom_right);
                 let bar_bottom =
-                    row != self.height && !self.are_neighbours(&bottom_left, &bottom_right);
+                    row != self.get_height() && !self.are_neighbours(&bottom_left, &bottom_right);
                 let bar_left = column != 0 && !self.are_neighbours(&top_left, &bottom_left);
                 match (bar_top, bar_right, bar_bottom, bar_left) {
                     (false, false, false, false) => write!(f, "  ")?,
@@ -348,7 +364,7 @@ impl Display for Universe {
                     (true, true, true, true) => write!(f, "┼─")?,
                 }
             }
-            if row != self.height {
+            if row != self.get_height() {
                 write!(f, "\n")?;
             }
         }
@@ -371,16 +387,26 @@ impl From<&[Galaxy]> for Universe {
             .max()
             .unwrap_or(0) as usize;
         let mut universe = Universe::new(width, height);
-        for g in galaxies {
-            for p1 in g.get_positions() {
-                for p2 in &p1.adjacent() {
-                    if g.contains_position(p2) {
-                        universe.graph.add_edge(*p1, *p2, ());
-                    }
-                }
+        for (id, g) in galaxies.iter().enumerate() {
+            for p in g.get_positions() {
+                universe[p] = id
             }
         }
 
         universe
+    }
+}
+
+impl Index<&Position> for Universe {
+    type Output = usize;
+
+    fn index(&self, pos: &Position) -> &Self::Output {
+        &self.grid[pos.row as usize][pos.column as usize]
+    }
+}
+
+impl IndexMut<&Position> for Universe {
+    fn index_mut(&mut self, pos: &Position) -> &mut Self::Output {
+        &mut self.grid[pos.row as usize][pos.column as usize]
     }
 }
