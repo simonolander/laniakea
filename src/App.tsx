@@ -1,16 +1,23 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import reactLogo from "./assets/react.svg";
 import viteLogo from "/vite.svg";
 import "./App.css";
 
-import { generate_universe } from "../rust/pkg";
+import { generate_state, State } from "../rust/pkg";
 
 function App() {
   const [count, setCount] = useState(0);
+  const stateRef = useRef<State | null>(null);
+  console.log(
+    "State generated:",
+    stateRef.current?.get_view(),
+    stateRef.current,
+  );
 
   useEffect(() => {
-    const universe = generate_universe();
-    console.log("Universe generated:", universe);
+    const state = generate_state();
+    stateRef.current = state;
+    return () => state.free();
   }, []);
 
   return (
