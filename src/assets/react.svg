@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-120 -120 240 240">
+    <defs>
+        <radialGradient id="coreGradient">
+            <stop offset="10%" stop-color="#61DAFB" />
+            <stop offset="100%" stop-color="#61DAFB" stop-opacity="0" />
+        </radialGradient>
+    </defs>
+
+    <!-- Galactic Core -->
+    <circle cx="0" cy="0" r="20" fill="#61DAFB" />
+    <circle cx="0" cy="0" r="40" fill="url(#coreGradient)" opacity="0.5" />
+
+    <!-- Spiral Arm 1 -->
+    <path d="M 0,0 C 15,-40 60,-60 80,-20 C 100,20 60,70 0,80"
+          fill="none"
+          stroke="#61DAFB"
+          stroke-width="8"
+          stroke-linecap="round"
+          opacity="0.8" />
+
+    <!-- Spiral Arm 2 (Mirrored) -->
+    <path d="M 0,0 C -15,40 -60,60 -80,20 C -100,-20 -60,-70 0,-80"
+          fill="none"
+          stroke="#61DAFB"
+          stroke-width="8"
+          stroke-linecap="round"
+          opacity="0.8" />
+
+    <!-- Dust/Stars along arms -->
+    <circle cx="75" cy="-45" r="2" fill="#61DAFB" />
+    <circle cx="-75" cy="45" r="2" fill="#61DAFB" />
+    <circle cx="40" cy="70" r="1.5" fill="#61DAFB" />
+    <circle cx="-40" cy="-70" r="1.5" fill="#61DAFB" />
+</svg>

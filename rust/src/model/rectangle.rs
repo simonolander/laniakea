@@ -22,6 +22,27 @@ impl Rectangle {
         }
     }
 
+    /// Returns the smallest rectangle that contains the given positions
+    pub fn bounding_rectangle(positions: impl IntoIterator<Item = Position>) -> Rectangle {
+        let mut min_row = i32::MAX;
+        let mut max_row = i32::MIN;
+        let mut min_column = i32::MAX;
+        let mut max_column = i32::MIN;
+        let mut any_position = false;
+        for position in positions {
+            min_row = min_row.min(position.row);
+            max_row = max_row.max(position.row);
+            min_column = min_column.min(position.column);
+            max_column = max_column.max(position.column);
+            any_position = true;
+        }
+        if any_position {
+            Rectangle::new(min_row, max_row, min_column, max_column)
+        } else {
+            Rectangle::default()
+        }
+    }
+
     pub fn width(&self) -> i32 {
         self.max_column - self.min_column
     }

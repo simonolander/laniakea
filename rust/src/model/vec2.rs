@@ -62,6 +62,12 @@ impl Vec2 {
             }
         }
     }
+    
+    /// Interprets the given position as half-steps, and returns
+    /// a Vec2 to that position
+    pub fn from_center(position: &Position) -> Vec2 {
+        Vec2::from(position) / 2.0
+    }
 }
 
 impl Add for Vec2 {
@@ -78,10 +84,17 @@ impl AddAssign<Vec2> for Vec2 {
     }
 }
 
+impl Sub<&Vec2> for Vec2 {
+    type Output = Vec2;
+    fn sub(self, other: &Vec2) -> Self::Output {
+        Vec2::new(self.x - other.x, self.y - other.y)
+    }
+}
+
 impl Sub for Vec2 {
     type Output = Vec2;
-    fn sub(self, other: Vec2) -> Vec2 {
-        Vec2::new(self.x - other.x, self.y - other.y)
+    fn sub(self, other: Vec2) -> Self::Output {
+        self - &other
     }
 }
 
@@ -305,10 +318,7 @@ mod tests {
 
         #[test]
         fn should_have_correct_angle() {
-            assert_relative_eq!(
-                Vec2::new(1.0, 0.0).angle_to(&Vec2::new(0.0, 1.0)),
-                PI / 2.0
-            );
+            assert_relative_eq!(Vec2::new(1.0, 0.0).angle_to(&Vec2::new(0.0, 1.0)), PI / 2.0);
             assert_relative_eq!(
                 Vec2::new(1.0, -1.0).angle_to(&Vec2::new(1.0, 0.0)),
                 PI / 4.0

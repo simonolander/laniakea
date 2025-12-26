@@ -9,3 +9,4 @@ pub mod objective;
 pub mod board_error;
 pub mod history;
 pub mod vec2;
+pub mod tree;

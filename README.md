@@ -1,74 +1,79 @@
-# Yew Trunk Template
+# React + TypeScript + Vite
 
-This is a fairly minimal template for a Yew app that's built with [Trunk].
+This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
-## Usage
+Currently, two official plugins are available:
 
-For a more thorough explanation of Trunk and its features, please head over to the [repository][trunk].
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
 
-### Installation
+## React Compiler
 
-If you don't already have it installed, it's time to install Rust: <https://www.rust-lang.org/tools/install>.
-The rest of this guide assumes a typical Rust installation which contains both `rustup` and Cargo.
+The React Compiler is currently not compatible with SWC. See [this issue](https://github.com/vitejs/vite-plugin-react/issues/428) for tracking the progress.
 
-To compile Rust to WASM, we need to have the `wasm32-unknown-unknown` target installed.
-If you don't already have it, install it with the following command:
+## Expanding the ESLint configuration
 
-```bash
-rustup target add wasm32-unknown-unknown
+If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+
+```js
+export default defineConfig([
+  globalIgnores(['dist']),
+  {
+    files: ['**/*.{ts,tsx}'],
+    extends: [
+      // Other configs...
+
+      // Remove tseslint.configs.recommended and replace with this
+      tseslint.configs.recommendedTypeChecked,
+      // Alternatively, use this for stricter rules
+      tseslint.configs.strictTypeChecked,
+      // Optionally, add this for stylistic rules
+      tseslint.configs.stylisticTypeChecked,
+
+      // Other configs...
+    ],
+    languageOptions: {
+      parserOptions: {
+        project: ['./tsconfig.node.json', './tsconfig.app.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
+      // other options...
+    },
+  },
+])
 ```
 
-Now that we have our basics covered, it's time to install the star of the show: [Trunk].
-Simply run the following command to install it:
+You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
 
-```bash
-cargo install trunk wasm-bindgen-cli
+```js
+// eslint.config.js
+import reactX from 'eslint-plugin-react-x'
+import reactDom from 'eslint-plugin-react-dom'
+
+export default defineConfig([
+  globalIgnores(['dist']),
+  {
+    files: ['**/*.{ts,tsx}'],
+    extends: [
+      // Other configs...
+      // Enable lint rules for React
+      reactX.configs['recommended-typescript'],
+      // Enable lint rules for React DOM
+      reactDom.configs.recommended,
+    ],
+    languageOptions: {
+      parserOptions: {
+        project: ['./tsconfig.node.json', './tsconfig.app.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
+      // other options...
+    },
+  },
+])
 ```
 
-That's it, we're done!
+# Wasm
 
-### Running
+## wasm-pack
 
-```bash
-trunk serve
-```
-
-Rebuilds the app whenever a change is detected and runs a local server to host it.
-
-There's also the `trunk watch` command which does the same thing but without hosting it.
-
-### Release
-
-```bash
-trunk build --release
-```
-
-This builds the app in release mode similar to `cargo build --release`.
-You can also pass the `--release` flag to `trunk serve` if you need to get every last drop of performance.
-
-Unless overwritten, the output will be located in the `dist` directory.
-
-## Using this template
-
-There are a few things you have to adjust when adopting this template.
-
-### Remove example code
-
-The code in [src/main.rs](src/main.rs) specific to the example is limited to only the `view` method.
-There is, however, a fair bit of Sass in [index.scss](index.scss) you can remove.
-
-### Update metadata
-
-Update the `name`, `version`, `description` and `repository` fields in the [Cargo.toml](Cargo.toml) file.
-The [index.html](index.html) file also contains a `<title>` tag that needs updating.
-
-Finally, you should update this very `README` file to be about your app.
-
-### License
-
-The template ships with both the Apache and MIT license.
-If you don't want to have your app dual licensed, just remove one (or both) of the files and update the `license` field in `Cargo.toml`.
-
-There are two empty spaces in the MIT license you need to fill out: `` and `Simon Olander Sahlén <simon.olander@gmail.com>`.
-
-[trunk]: https://github.com/thedodd/trunk
+In order to build the wasm module, you need to install [wasm-pack](https://drager.github.io/wasm-pack/installer/).

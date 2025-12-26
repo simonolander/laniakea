@@ -5,6 +5,7 @@ use crate::model::position::CenterPlacement::{
 use crate::model::rectangle::Rectangle;
 use rand::Rng;
 use std::fmt::{Display, Formatter};
+use std::ops::Sub;
 
 #[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Copy, Clone, Hash)]
 pub struct Position {
@@ -109,6 +110,19 @@ impl Position {
             }
         }
     }
+
+    /// Mirrors the position horizontally and vertically with respect
+    /// to this position, interpreted as half-steps
+    pub fn mirror_position(&self, p: &Position) -> Position {
+        let mirrored_row = self.row - p.row;
+        let mirrored_column = self.column - p.column;
+        Position::new(mirrored_row, mirrored_column)
+    }
+
+    /// Returns the index of this position in a grid with the given width
+    pub fn to_index(&self, width: usize) -> usize {
+        self.row as usize * width + self.column as usize
+    }
 }
 
 impl Display for Position {
@@ -126,6 +140,34 @@ impl From<(usize, usize)> for Position {
 impl From<(i32, i32)> for Position {
     fn from((row, column): (i32, i32)) -> Self {
         Position::new(row, column)
+    }
+}
+
+impl<'a, 'b> Sub<&'b Position> for &'a Position {
+    type Output = Position;
+    fn sub(self, rhs: &'b Position) -> Position {
+        Position::new(self.row - rhs.row, self.column - rhs.column)
+    }
+}
+
+impl Sub<&Position> for Position {
+    type Output = Position;
+    fn sub(self, rhs: &Position) -> Position {
+        &self - rhs
+    }
+}
+
+impl Sub<Position> for &Position {
+    type Output = Position;
+    fn sub(self, rhs: Position) -> Position {
+        self - &rhs
+    }
+}
+
+impl Sub<Position> for Position {
+    type Output = Position;
+    fn sub(self, rhs: Position) -> Position {
+        &self - &rhs
     }
 }
 
@@ -297,6 +339,64 @@ mod tests {
         fn test_from_usize_usize(row: i32, col: i32) {
             let tuple = (row as usize, col as usize);
             prop_assert_eq!(Position::from(tuple), Position::new(row, col));
+        }
+    }
+
+    mod ord {
+        use crate::model::position::Position;
+        use proptest::{prop_assert, prop_assume, proptest};
+
+        proptest! {
+            #[test]
+            fn order_by_row(r1: i32, c1: i32, r2: i32, c2: i32) {
+                prop_assume!(r1 < r2);
+                let p1 = Position::new(r1, c1);
+                let p2 = Position::new(r2, c2);
+
+                prop_assert!(p1 < p2);
+            }
+
+            #[test]
+            fn if_same_row_then_order_by_column(row: i32, c1: i32, c2: i32) {
+                prop_assume!(c1 < c2);
+                let p1 = Position::new(row, c1);
+                let p2 = Position::new(row, c2);
+
+                prop_assert!(p1 < p2);
+            }
+        }
+    }
+
+    mod eq {
+        use crate::model::position::Position;
+        use proptest::{prop_assert_eq, prop_assert_ne, prop_assume, proptest};
+
+        proptest! {
+            #[test]
+            fn should_be_equal_if_row_and_column_is_equal(row: i32, col: i32) {
+                let p1 = Position::new(row, col);
+                let p2 = Position::new(row, col);
+
+                prop_assert_eq!(p1, p2);
+            }
+
+            #[test]
+            fn should_not_be_equal_if_rows_are_different(r1: i32, r2: i32, col: i32) {
+                prop_assume!(r1 != r2);
+                let p1 = Position::new(r1, col);
+                let p2 = Position::new(r2, col);
+
+                prop_assert_ne!(p1, p2);
+            }
+
+            #[test]
+            fn should_not_be_equal_if_columns_are_different(row: i32, c1: i32, c2: i32) {
+                prop_assume!(c1 != c2);
+                let p1 = Position::new(row, c1);
+                let p2 = Position::new(row, c2);
+
+                prop_assert_ne!(p1, p2);
+            }
         }
     }
 }

@@ -1,11 +1,18 @@
 use crate::model::border::Border;
-use crate::model::position::Position;
+use crate::model::position::{CenterPlacement, Position};
 use crate::model::rectangle::Rectangle;
+use crate::model::tree::Tree;
 use crate::model::vec2::Vec2;
 use itertools::Itertools;
+use ordered_float::{Float, OrderedFloat};
 use std::cmp::{max, min};
+use std::collections::hash_map::Entry;
+use std::collections::hash_map::Entry::{Occupied, Vacant};
 use std::collections::{HashMap, HashSet, LinkedList, VecDeque};
+use std::convert::identity;
 use std::fmt::{Display, Formatter};
+use std::ops::Sub;
+use std::slice::Iter;
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct Galaxy {
@@ -16,11 +23,12 @@ pub struct Galaxy {
 /// - It must not be empty
 /// - It must be connected
 /// - It must contain its center
-/// - It must be rotationally symmetric
+/// - It must be rotationally symmetric, order 2 (or 4)
 impl Galaxy {
     /// Create a galaxy from a string, where non-space characters
     /// are interpreted as belonging to the galaxy.
-    pub fn from_string(string: &str) -> Self {
+    /// The resulting galaxy is not necessarily valid.
+    fn from_string(string: &str) -> Self {
         string
             .lines()
             .enumerate()
@@ -66,38 +74,20 @@ impl Galaxy {
     ///
     /// If the galaxy is empty, (0, 0) is returned.
     pub fn center(&self) -> Position {
-        let rect = self.bounding_rectangle();
+        let rect = self.get_bounding_rectangle();
         let center_half_row = rect.min_row + rect.max_row;
         let center_half_column = rect.min_column + rect.max_column;
         Position::new(center_half_row, center_half_column)
     }
 
     /// Returns the smallest rectangle that contains the galaxy.
-    pub fn bounding_rectangle(&self) -> Rectangle {
-        self.positions
-            .iter()
-            .fold(Option::<Rectangle>::default(), |acc, p| match acc {
-                None => Some(Rectangle {
-                    min_row: p.row,
-                    max_row: p.row,
-                    min_column: p.column,
-                    max_column: p.column,
-                }),
-                Some(rect) => Some(Rectangle::new(
-                    min(p.row, rect.min_row),
-                    max(p.row, rect.max_row),
-                    min(p.column, rect.min_column),
-                    max(p.column, rect.max_column),
-                )),
-            })
-            .unwrap_or(Rectangle::default())
+    pub fn get_bounding_rectangle(&self) -> Rectangle {
+        Rectangle::bounding_rectangle(self.positions.iter().copied())
     }
 
+    /// Mirrors the position horizontally and vertically with respect to the center of the galaxy
     pub fn mirror_position(&self, p: &Position) -> Position {
-        let center = self.center();
-        let mirrored_row = center.row - p.row;
-        let mirrored_column = center.column - p.column;
-        Position::new(mirrored_row, mirrored_column)
+        self.center().mirror_position(p)
     }
 
     pub fn contains_position(&self, p: &Position) -> bool {
@@ -225,6 +215,42 @@ impl Galaxy {
         swirl
     }
 
+    pub fn get_cumulative_swirl(&self) -> f64 {
+        if self.is_empty() {
+            return 0.0;
+        }
+        let center = self.center();
+        let center_positions = self.center().get_center_placement().get_positions();
+        let center = Vec2::from(&center) / 2.0;
+        let mut partial_swirls: HashMap<Position, Vec<f64>> = HashMap::new();
+        let mut queue: VecDeque<Position> = VecDeque::new();
+        let mut cumulative_swirl = 0.0;
+        for position in center_positions.into_iter() {
+            partial_swirls.insert(position, vec![0.0]);
+            queue.push_back(position);
+        }
+        while let Some(position) = queue.pop_front() {
+            let v = Vec2::from(&position);
+            let swirl = {
+                let partials = partial_swirls.get(&position).unwrap();
+                partials.iter().sum::<f64>() / partials.len() as f64
+            };
+            cumulative_swirl += swirl;
+            for n in self.get_neighbours(&position) {
+                let angle = (v - center).angle_to(&(Vec2::from(&n) - center));
+                if !partial_swirls.contains_key(&n) {
+                    queue.push_back(n);
+                }
+                partial_swirls
+                    .entry(n)
+                    .or_insert_with(Vec::new)
+                    .push(swirl + angle);
+            }
+        }
+
+        cumulative_swirl
+    }
+
     pub fn get_curl(&self) -> f64 {
         let distances = self.get_hamming_distances();
         let children_map: HashMap<Position, Vec<Position>> = self
@@ -276,24 +302,323 @@ impl Galaxy {
         curl
     }
 
-    /// The sum for each arm of the galaxy, of
-    /// how many times the arm turns around the center of the galaxy
-    fn get_winding_number(&self) -> f64 {
-        0.0
+    /// Return a map with all the positions, mapped to all positions that are one step closer to the center.
+    /// For the root positions, the vec is empty.
+    fn get_parent_candidates(&self) -> HashMap<Position, Vec<Position>> {
+        let hamming_distances = self.get_hamming_distances();
+        self.positions
+            .iter()
+            .map(|position| {
+                let hamming_distance = hamming_distances[position];
+                let candidates = self
+                    .get_neighbours(position)
+                    .into_iter()
+                    .filter(|n| hamming_distances[n] + 1 == hamming_distance)
+                    .collect();
+                (*position, candidates)
+            })
+            .collect()
     }
 
-    fn get_spanning_tree(&self) {
-        let bound = self.get_bounding_rectangle();
-        bound;
+    pub fn score_spanning_tree(&self, spanning_tree: &Tree) -> f64 {
+        let center = Vec2::from(&self.center()) / 2.0;
+        spanning_tree
+            .iter()
+            .map(|(child, maybe_parent)| {
+                if let Some(parent) = maybe_parent {
+                    let p_v = Vec2::from(parent) - center;
+                    let c_v = Vec2::from(child) - center;
+                    p_v.angle_to(&c_v)
+                } else {
+                    0.0
+                }
+            })
+            .sum()
     }
 
-    fn get_bounding_rectangle(&self) -> Rectangle {
-        Rectangle::new(
-            self.positions.iter().map(|p| p.row).min().unwrap_or(0),
-            self.positions.iter().map(|p| p.row).max().unwrap_or(0),
-            self.positions.iter().map(|p| p.column).min().unwrap_or(0),
-            self.positions.iter().map(|p| p.column).max().unwrap_or(0),
-        )
+    pub fn get_winding_spanning_tree(&self) -> HashMap<Position, (f64, Option<Position>)> {
+        let center = self.center();
+        let center_positions = center.get_center_placement().get_positions();
+        let center_v = Vec2::from_center(&center);
+        let mut parent_map = HashMap::with_capacity(self.size());
+        let mut queue = VecDeque::new();
+        for &p in center_positions.iter() {
+            parent_map.insert(p, (0.0, None));
+            queue.push_back(p);
+        }
+        while parent_map.len() != self.size() {
+            let mut parent_candidates = HashMap::<Position, (f64, Position)>::new();
+            while let Some(parent) = queue.pop_front() {
+                let parent_winding_number = parent_map[&parent].0;
+                let parent_v = Vec2::from(&parent) - &center_v;
+                self.get_neighbours(&parent)
+                    .into_iter()
+                    .filter(|neighbour| !parent_map.contains_key(&neighbour))
+                    .for_each(|child| {
+                        let child_v = Vec2::from(&child) - &center_v;
+                        let winding_number = parent_winding_number + parent_v.angle_to(&child_v);
+                        parent_candidates
+                            .entry(child)
+                            .and_modify(|(best_winding_number, best_parent)| {
+                                if winding_number.abs() > best_winding_number.abs() {
+                                    *best_winding_number = winding_number;
+                                    *best_parent = parent;
+                                }
+                            })
+                            .or_insert((winding_number, parent));
+                    });
+            }
+            for (child, (winding_number, parent)) in parent_candidates.into_iter() {
+                parent_map.insert(child, (winding_number, Some(parent)));
+                queue.push_back(child);
+            }
+        }
+
+        parent_map
+    }
+
+    pub fn get_score(&self) -> f64 {
+        let mut score = 0.0;
+
+        if self.is_zig_zag() {
+            return 0.0;
+        }
+
+        // Penalize big rectangles
+        for rect in self.rectangles() {
+            let area = rect.area() as f64;
+            score -= area.powf(2.);
+        }
+
+        // Penalize large amounts of fat
+        let skeleton = self.get_skeleton();
+        {
+            let fat_rate_threshold = 0.1; // Some fat is alright
+            let fat_amount = self.size() - skeleton.size();
+            let fat_rate = fat_amount as f64 / self.size() as f64;
+            if fat_rate > fat_rate_threshold {
+                score -= (fat_amount as f64).powf(2.);
+            }
+        }
+
+        // Reward curly galaxies
+        score += self.get_swirl().powf(2.);
+
+        // Reward long arms
+        let arms = skeleton.get_arms();
+        for arm in &arms {
+            score += (arm.len() as f64).powf(2.);
+        }
+
+        // Reward many long arms
+        {
+            let number_of_long_arms = arms.iter().filter(|arm| arm.len() > 1).count();
+            score += (number_of_long_arms as f64).powf(2.5);
+        }
+
+        // Penalize huge galaxies
+        if self.size() > 16 {
+            score -= (self.size() as f64).powf(2.);
+        }
+
+        // Reward holes
+        let holes = self.get_holes();
+        score += holes.len() as f64 * 10.0;
+
+        score
+    }
+
+    pub fn get_arms(&self) -> Vec<Vec<Position>> {
+        let spanning_tree = self.get_spanning_tree();
+        let mut remaining_leaves: VecDeque<Position> = {
+            let hamming_distances = self.get_hamming_distances();
+            let children: HashSet<Position> = spanning_tree.get_positions().into_iter().collect();
+            let parents: HashSet<Position> = spanning_tree.iter().filter_map(|(_, &p)| p).collect();
+            children
+                .sub(&parents)
+                .iter()
+                .sorted_by_key(|position| hamming_distances[position])
+                .cloned()
+                .collect()
+        };
+        let mut arms = Vec::new();
+        let mut visited = HashSet::new();
+        while let Some(mut position) = remaining_leaves.pop_back() {
+            let mut current_arm = Vec::new();
+            current_arm.push(position);
+            while let Some(parent) = spanning_tree.get_parent(&position) {
+                if !visited.insert(parent) {
+                    break;
+                }
+                current_arm.push(parent);
+                position = parent;
+            }
+            arms.push(current_arm);
+        }
+        arms
+    }
+
+    pub fn get_spanning_tree(&self) -> Tree {
+        let parent_candidates = self.get_parent_candidates();
+        let center = Vec2::from_center(&self.center());
+        let get_spanning_tree_internal = |discriminator: fn(f64) -> OrderedFloat<f64>| -> Tree {
+            parent_candidates
+                .iter()
+                .map(|(child, candidates)| {
+                    let child_v = Vec2::from(child) - center;
+                    let parent = candidates.iter().min_by_key(|&candidate| {
+                        let candidate_v = Vec2::from(candidate) - center;
+                        let angle = candidate_v.angle_to(&child_v);
+                        discriminator(angle)
+                    });
+                    (*child, parent.copied())
+                })
+                .collect()
+        };
+
+        if self.is_mirror_symmetric() {
+            get_spanning_tree_internal(|angle| OrderedFloat(angle.abs()))
+        } else {
+            let clockwise = get_spanning_tree_internal(|angle| OrderedFloat(-angle));
+            let counter_clockwise = get_spanning_tree_internal(|angle| OrderedFloat(angle));
+            if self.score_spanning_tree(&counter_clockwise).abs()
+                > self.score_spanning_tree(&clockwise).abs()
+            {
+                counter_clockwise
+            } else {
+                clockwise
+            }
+        }
+    }
+
+    /// Returns the average number of neighbours of each position
+    fn get_thickness(&self) -> f64 {
+        if self.is_empty() {
+            return 0.0;
+        }
+        self.positions
+            .iter()
+            .map(|p| self.get_neighbours(p).len() as f64)
+            .sum::<f64>()
+            / self.size() as f64
+    }
+
+    fn get_skeleton(&self) -> Galaxy {
+        let mut skeleton = self.clone();
+        let center = skeleton.center();
+        let center_positions = center.get_center_placement().get_positions();
+        let mirror_symmetric = skeleton.is_mirror_symmetric();
+        loop {
+            let mut maybe_fat = skeleton.positions.iter().sorted().find(|position| {
+                if center_positions.contains(position) {
+                    return false;
+                }
+                let north = position.up();
+                let n = skeleton.contains_position(&north);
+                let west = position.left();
+                let w = skeleton.contains_position(&west);
+                let south = position.down();
+                let s = skeleton.contains_position(&south);
+                let east = position.right();
+                let e = skeleton.contains_position(&east);
+
+                match (n, w, s, e) {
+                    (true, true, false, false) => {
+                        let north_west = north.left();
+                        skeleton.contains_position(&north_west)
+                    }
+                    (true, false, false, true) => {
+                        let north_east = north.right();
+                        skeleton.contains_position(&north_east)
+                    }
+                    (false, true, true, false) => {
+                        let south_west = south.left();
+                        skeleton.contains_position(&south_west)
+                    }
+                    (false, false, true, true) => {
+                        let south_east = south.right();
+                        skeleton.contains_position(&south_east)
+                    }
+                    _ => false,
+                }
+            });
+            if maybe_fat.is_none() {
+                maybe_fat = skeleton.positions.iter().sorted().find(|position| {
+                    if center_positions.contains(position) {
+                        return false;
+                    }
+                    let north = position.up();
+                    let n = skeleton.contains_position(&north);
+                    let west = position.left();
+                    let w = skeleton.contains_position(&west);
+                    let south = position.down();
+                    let s = skeleton.contains_position(&south);
+                    let east = position.right();
+                    let e = skeleton.contains_position(&east);
+
+                    match (n, w, s, e) {
+                        (false, true, true, true) => {
+                            let south_west = south.left();
+                            let south_east = south.right();
+                            skeleton.contains_position(&south_west)
+                                && skeleton.contains_position(&south_east)
+                        }
+                        (true, false, true, true) => {
+                            let north_east = north.right();
+                            let south_east = south.right();
+                            skeleton.contains_position(&north_east)
+                                && skeleton.contains_position(&south_east)
+                        }
+                        (true, true, false, true) => {
+                            let north_west = north.left();
+                            let north_east = north.right();
+                            skeleton.contains_position(&north_west)
+                                && skeleton.contains_position(&north_east)
+                        }
+                        (true, true, true, false) => {
+                            let north_west = north.left();
+                            let south_west = south.left();
+                            skeleton.contains_position(&north_west)
+                                && skeleton.contains_position(&south_west)
+                        }
+                        _ => false,
+                    }
+                });
+            }
+            if let Some(fat) = maybe_fat.copied() {
+                skeleton.remove_position(&fat);
+                let diagonal_mirror = center.mirror_position(&fat);
+                skeleton.remove_position(&diagonal_mirror);
+                let horizontal_mirror = Position::new(fat.row, diagonal_mirror.column);
+                let vertical_mirror = Position::new(diagonal_mirror.row, fat.column);
+                if mirror_symmetric
+                    && !fat.is_adjacent_to(&horizontal_mirror)
+                    && !fat.is_adjacent_to(&vertical_mirror)
+                {
+                    skeleton.remove_position(&horizontal_mirror);
+                    skeleton.remove_position(&vertical_mirror);
+                }
+            } else {
+                break;
+            }
+        }
+        skeleton
+    }
+
+    /// Returns whether every cell of the galaxy is mirrored
+    /// across the vertical axis passing through the center.
+    /// E.g. the first of the following galaxies is mirror symmetric,
+    /// but the second is not.
+    /// 1) ┌─┐ ┌─┐  2) ┌─┐
+    ///    │ └─┘ │     │ └───┐
+    ///    │ ┌─┐ │     └───┐ │
+    ///    └─┘ └─┘         └─┘
+    fn is_mirror_symmetric(&self) -> bool {
+        let center = self.center();
+        self.positions
+            .iter()
+            .map(|p| Position::new(p.row, center.column - p.column))
+            .all(|p| self.positions.contains(&p))
     }
 
     fn get_hamming_distances(&self) -> HashMap<Position, usize> {
@@ -403,11 +728,69 @@ impl Galaxy {
 
         rectangles
     }
+
+    /// Returns whether the galaxy surrounds the position,
+    /// even though the position does not belong to the galaxy
+    fn is_hole(&self, p: &Position) -> bool {
+        !self.contains_position(p) && self.get_neighbours(p).len() == 4
+    }
+
+    fn get_holes(&self) -> Vec<Position> {
+        self.get_bounding_rectangle()
+            .positions()
+            .iter()
+            .filter(|p| self.is_hole(p))
+            .cloned()
+            .collect()
+    }
+
+    fn is_turn(&self, p: &Position) -> bool {
+        if self.contains_position(p) {
+            let up = self.contains_position(&p.up());
+            let down = self.contains_position(&p.down());
+            let left = self.contains_position(&p.left());
+            let right = self.contains_position(&p.right());
+            match (up, right, down, left) {
+                (true, true, false, false) => true,
+                (false, true, true, false) => true,
+                (false, false, true, true) => true,
+                (true, false, false, true) => true,
+                _ => false,
+            }
+        } else {
+            false
+        }
+    }
+
+    fn is_leaf(&self, p: &Position) -> bool {
+        if self.contains_position(p) {
+            let up = self.contains_position(&p.up());
+            let down = self.contains_position(&p.down());
+            let left = self.contains_position(&p.left());
+            let right = self.contains_position(&p.right());
+            match (up, right, down, left) {
+                (true, false, false, false) => true,
+                (false, true, false, false) => true,
+                (false, false, true, false) => true,
+                (false, false, false, true) => true,
+                (false, false, false, false) => true,
+                _ => false,
+            }
+        } else {
+            false
+        }
+    }
+
+    fn is_zig_zag(&self) -> bool {
+        self.get_positions()
+            .all(|p| self.is_turn(&p) || self.is_leaf(&p))
+            && self.get_positions().any(|p| self.is_turn(&p))
+    }
 }
 
 impl Display for Galaxy {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let bounds = self.bounding_rectangle();
+        let bounds = self.get_bounding_rectangle();
         let positions: HashSet<Position> = self
             .get_positions()
             .map(|p| Position::new(p.row - bounds.min_row, p.column - bounds.min_column))
@@ -470,6 +853,12 @@ where
 impl From<&Rectangle> for Galaxy {
     fn from(rect: &Rectangle) -> Self {
         Self::from(rect.positions())
+    }
+}
+
+impl From<Position> for Galaxy {
+    fn from(position: Position) -> Self {
+        Self::from([position])
     }
 }
 
@@ -660,20 +1049,6 @@ mod tests {
                 (5, 0), (5, 1), (5, 2),         (5, 4), (5, 5), (5, 6),
             ]);
             assert_abs_diff_eq!(galaxy.get_swirl(), 0.0, epsilon = 1e-8);
-
-            // #[rustfmt::skip]
-            // let galaxy = Galaxy::from(vec![
-            //     (0, 0), (0, 1), (0, 2), (0, 3), (0, 4), (0, 5), (0, 6), (0, 7), (0, 8), (0, 9),
-            //     (1, 0), (1, 1), (1, 2), (1, 3), (1, 4), (1, 5), (1, 6), (1, 7), (1, 8), (1, 9),
-            //     (2, 0), (2, 1), (2, 2), (2, 3), (2, 4), (2, 5), (2, 6), (2, 7), (2, 8), (2, 9),
-            //     (3, 0), (3, 1), (3, 2), (3, 3), (3, 4), (3, 5), (3, 6), (3, 7), (3, 8), (3, 9),
-            //     (4, 0), (4, 1), (4, 2), (4, 3), (4, 4), (4, 5), (4, 6), (4, 7), (4, 8), (4, 9),
-            //     (5, 0), (5, 1), (5, 2), (5, 3), (5, 4), (5, 5), (5, 6), (5, 7), (5, 8), (5, 9),
-            //     (6, 0), (6, 1), (6, 2), (6, 3), (6, 4), (6, 5), (6, 6), (6, 7), (6, 8), (6, 9),
-            //     (7, 0), (7, 1), (7, 2), (7, 3), (7, 4), (7, 5), (7, 6), (7, 7), (7, 8), (7, 9),
-            //     (8, 0), (8, 1), (8, 2), (8, 3), (8, 4), (8, 5), (8, 6), (8, 7), (8, 8), (8, 9),
-            //     (9, 0), (9, 1), (9, 2), (9, 3), (9, 4), (9, 5), (9, 6), (9, 7), (9, 8), (9, 9),
-            // ]);
         }
 
         #[test]
@@ -844,20 +1219,6 @@ mod tests {
                 (5, 0), (5, 1), (5, 2),         (5, 4), (5, 5), (5, 6),
             ]);
             assert_abs_diff_eq!(galaxy.get_curl(), 0.0, epsilon = 1e-8);
-
-            // #[rustfmt::skip]
-            // let galaxy = Galaxy::from(vec![
-            //     (0, 0), (0, 1), (0, 2), (0, 3), (0, 4), (0, 5), (0, 6), (0, 7), (0, 8), (0, 9),
-            //     (1, 0), (1, 1), (1, 2), (1, 3), (1, 4), (1, 5), (1, 6), (1, 7), (1, 8), (1, 9),
-            //     (2, 0), (2, 1), (2, 2), (2, 3), (2, 4), (2, 5), (2, 6), (2, 7), (2, 8), (2, 9),
-            //     (3, 0), (3, 1), (3, 2), (3, 3), (3, 4), (3, 5), (3, 6), (3, 7), (3, 8), (3, 9),
-            //     (4, 0), (4, 1), (4, 2), (4, 3), (4, 4), (4, 5), (4, 6), (4, 7), (4, 8), (4, 9),
-            //     (5, 0), (5, 1), (5, 2), (5, 3), (5, 4), (5, 5), (5, 6), (5, 7), (5, 8), (5, 9),
-            //     (6, 0), (6, 1), (6, 2), (6, 3), (6, 4), (6, 5), (6, 6), (6, 7), (6, 8), (6, 9),
-            //     (7, 0), (7, 1), (7, 2), (7, 3), (7, 4), (7, 5), (7, 6), (7, 7), (7, 8), (7, 9),
-            //     (8, 0), (8, 1), (8, 2), (8, 3), (8, 4), (8, 5), (8, 6), (8, 7), (8, 8), (8, 9),
-            //     (9, 0), (9, 1), (9, 2), (9, 3), (9, 4), (9, 5), (9, 6), (9, 7), (9, 8), (9, 9),
-            // ]);
         }
 
         #[test]
@@ -962,6 +1323,292 @@ mod tests {
                 3.0 * PI,
                 epsilon = 1e-8
             );
+        }
+    }
+
+    mod get_skeleton {
+        use crate::model::galaxy::Galaxy;
+
+        #[test]
+        fn known_shapes() {
+            assert_eq!(
+                Galaxy::from_string(
+                    "
+                    ▉▉▉
+                    ▉▉▉
+                    ",
+                )
+                .get_skeleton(),
+                Galaxy::from_string(
+                    "
+                     ▉▉
+                    ▉▉
+                    "
+                )
+            );
+            assert_eq!(
+                Galaxy::from_string(
+                    "
+                    ▉▉▉
+                    ▉▉▉
+                    ▉▉▉
+                    ",
+                )
+                .get_skeleton(),
+                Galaxy::from_string(
+                    "
+                     ▉
+                    ▉▉▉
+                     ▉
+                    "
+                )
+            );
+            assert_eq!(
+                Galaxy::from_string(
+                    "
+                    ▉▉▉▉
+                    ▉▉▉▉
+                    ▉▉▉▉
+                    ▉▉▉▉
+                    ",
+                )
+                .get_skeleton(),
+                Galaxy::from_string(
+                    "
+                      ▉
+                     ▉▉▉
+                    ▉▉▉
+                     ▉
+                    "
+                )
+            );
+            assert_eq!(
+                Galaxy::from_string(
+                    "
+                    ▉▉▉▉▉
+                    ▉▉▉▉▉
+                    ▉▉▉▉▉
+                    ▉▉▉▉▉
+                    ▉▉▉▉▉
+                    ",
+                )
+                .get_skeleton(),
+                Galaxy::from_string(
+                    "
+                      ▉  
+                      ▉  
+                    ▉▉▉▉▉
+                      ▉   
+                      ▉  
+                    "
+                )
+            );
+            let original = Galaxy::from_string(
+                "
+                 ▉▉▉
+                ▉▉
+                ▉▉ ▉▉▉
+                ▉▉ ▉ ▉▉
+                 ▉▉▉ ▉▉
+                     ▉▉
+                   ▉▉▉
+                ",
+            );
+            let expected = Galaxy::from_string(
+                "
+                 ▉▉▉
+                 ▉
+                 ▉ ▉▉▉
+                ▉▉ ▉ ▉▉
+                 ▉▉▉ ▉
+                     ▉
+                   ▉▉▉
+                ",
+            );
+            let actual = original.get_skeleton();
+            assert_eq!(actual, expected, "Expected:\n{expected}\nActual:\n{actual}");
+            let original = Galaxy::from_string(
+                "
+                 ▉
+                 ▉▉
+                ▉▉▉▉▉
+                ▉▉▉▉
+                 ▉▉▉▉
+                ▉▉▉▉▉
+                  ▉▉
+                   ▉
+                ",
+            );
+            let expected = Galaxy::from_string(
+                "
+                 ▉
+                 ▉ 
+                 ▉ ▉▉
+                ▉▉▉▉
+                 ▉▉▉▉
+                ▉▉ ▉ 
+                   ▉
+                   ▉
+                ",
+            );
+            let actual = original.get_skeleton();
+            assert_eq!(actual, expected, "Expected:\n{expected}\nActual:\n{actual}");
+            let original = Galaxy::from_string(
+                "
+                  ▉
+                 ▉▉▉
+                ▉▉▉▉▉▉
+                  ▉▉▉
+                   ▉
+                ",
+            );
+            let expected = Galaxy::from_string(
+                "
+                  ▉
+                  ▉
+                ▉▉▉▉▉▉
+                   ▉
+                   ▉
+                ",
+            );
+            let actual = original.get_skeleton();
+            assert_eq!(actual, expected, "Expected:\n{expected}\nActual:\n{actual}");
+            let original = Galaxy::from_string(
+                "
+                  ▉
+                 ▉▉▉▉
+                 ▉▉▉▉
+                  ▉▉
+                ▉▉▉▉▉
+                 ▉▉
+                ▉▉▉▉
+                ▉▉▉▉
+                  ▉
+                ",
+            );
+            let expected = Galaxy::from_string(
+                "
+                  ▉
+                  ▉
+                 ▉▉▉▉
+                   ▉
+                ▉▉▉▉▉
+                 ▉
+                ▉▉▉▉
+                  ▉
+                  ▉
+                ",
+            );
+            let actual = original.get_skeleton();
+            assert_eq!(actual, expected, "Expected:\n{expected}\nActual:\n{actual}");
+            let original = Galaxy::from_string(
+                "
+                ▉▉ ▉▉
+                ▉ ▉▉▉▉
+                ▉▉▉▉ ▉
+                 ▉▉ ▉▉
+                ",
+            );
+            let expected = Galaxy::from_string(
+                "
+                ▉▉  ▉
+                ▉ ▉▉▉▉
+                ▉▉▉▉ ▉
+                 ▉  ▉▉
+                ",
+            );
+            let actual = original.get_skeleton();
+            assert_eq!(actual, expected, "Expected:\n{expected}\nActual:\n{actual}");
+            let original = Galaxy::from_string(
+                "
+                  ▉
+                 ▉▉▉
+                ▉▉▉ ▉
+                ▉ ▉▉▉
+                 ▉▉▉
+                  ▉
+                ",
+            );
+            let expected = Galaxy::from_string(
+                "
+                  ▉
+                  ▉▉
+                ▉▉▉ ▉
+                ▉ ▉▉▉
+                 ▉▉ 
+                  ▉
+                ",
+            );
+            let actual = original.get_skeleton();
+            assert_eq!(actual, expected, "Expected:\n{expected}\nActual:\n{actual}");
+        }
+    }
+
+    mod get_score {
+        use crate::model::galaxy::Galaxy;
+
+        #[test]
+        fn debug_score() {
+            //       ┌─┐
+            // ┌─────┘ │
+            // └───┐   └─┐
+            // ┌───┘ ┌───┘
+            // └─┐   └───┐
+            //   │ ┌─────┘
+            //   └─┘
+            let galaxy = Galaxy::from_string(
+                "
+                   x
+                xxxx
+                  xxx
+                xxx
+                 xxxx
+                 x
+                ",
+            );
+            assert_eq!(galaxy.get_score(), 0.0);
+        }
+
+        #[test]
+        fn cool_galaxies_should_have_higher_score_than_boring_galaxies() {
+            let cool_galaxies: Vec<Galaxy> = vec![
+                "
+                ▉▉▉  ▉▉
+                ▉ ▉▉▉▉ ▉
+                 ▉▉  ▉▉▉
+                ",
+                "
+                  ▉
+                ▉▉▉
+                 ▉▉▉
+                 ▉
+                ",
+                "
+                ▉▉  ▉
+                ▉ ▉▉▉▉
+                ▉▉▉▉ ▉
+                 ▉  ▉▉
+                ",
+            ]
+            .iter()
+            .map(|string| Galaxy::from_string(string))
+            .collect();
+
+            let boring_galaxies: Vec<Galaxy> = vec![
+                "
+                ▉▉
+                ▉▉
+                ",
+            ]
+            .iter()
+            .map(|string| Galaxy::from_string(string))
+            .collect();
+
+            for cool_galaxy in &cool_galaxies {
+                for boring_galaxy in &boring_galaxies {
+                    assert!(cool_galaxy.get_score() > boring_galaxy.get_score());
+                }
+            }
         }
     }
 }
