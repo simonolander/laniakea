@@ -1,4 +1,5 @@
 use web_sys::wasm_bindgen::prelude::wasm_bindgen;
+use crate::model::state::State;
 use crate::model::universe::Universe;
 
 mod model;
@@ -14,4 +15,9 @@ pub fn generate_universe() -> Vec<usize> {
         .get_ids()
         .copied()
         .collect()
+}
+
+#[wasm_bindgen]
+pub fn generate_state() -> State {
+    State::generate(10)
 }

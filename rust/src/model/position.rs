@@ -4,10 +4,11 @@ use crate::model::position::CenterPlacement::{
 };
 use crate::model::rectangle::Rectangle;
 use rand::Rng;
+use serde::Serialize;
 use std::fmt::{Display, Formatter};
 use std::ops::Sub;
 
-#[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Copy, Clone, Hash)]
+#[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Copy, Clone, Hash, Serialize)]
 pub struct Position {
     pub row: i32,
     pub column: i32,

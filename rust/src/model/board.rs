@@ -277,6 +277,30 @@ impl Board {
 
         false
     }
+
+    /// Returns a matrix where m[row][column] is true if there is a border
+    /// to the right of the cell (row, column).
+    pub fn get_vertical_borders(&self) -> Vec<Vec<bool>> {
+        let mut matrix = vec![vec![false; self.width - 1]; self.height];
+        for border in self.get_borders() {
+            if border.is_vertical() {
+                matrix[border.p1().row as usize][border.p1().column as usize] = true;
+            }
+        }
+        matrix
+    }
+
+    /// Returns a matrix where m[row][column] is true if there is a border
+    /// below the cell (row, column).
+    pub fn get_horizontal_borders(&self) -> Vec<Vec<bool>> {
+        let mut matrix = vec![vec![false; self.width]; self.height - 1];
+        for border in self.get_borders() {
+            if border.is_horizontal() {
+                matrix[border.p1().row as usize][border.p1().column as usize] = true;
+            }
+        }
+        matrix
+    }
 }
 
 #[cfg(test)]

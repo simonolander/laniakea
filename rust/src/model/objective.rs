@@ -1,21 +1,24 @@
 use crate::model::border::Border;
 use crate::model::position::Position;
 use crate::model::universe::Universe;
+use serde::Serialize;
+use std::collections::HashSet;
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone, Ord, PartialOrd, Hash, Serialize)]
 pub struct GalaxyCenter {
     pub position: Position,
     pub size: Option<usize>,
 }
 
+#[derive(Serialize, Clone)]
 pub struct Objective {
-    pub centers: Vec<GalaxyCenter>,
-    pub walls: Vec<Border>,
+    pub centers: HashSet<GalaxyCenter>,
+    pub walls: HashSet<Border>,
 }
 
 impl Objective {
     pub fn generate(universe: &Universe) -> Self {
-        let walls = Vec::new();
+        let walls = HashSet::new();
         let centers = universe
             .get_galaxies()
             .iter()
