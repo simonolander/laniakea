@@ -3,7 +3,7 @@ import reactLogo from "./assets/react.svg";
 import viteLogo from "/vite.svg";
 import "./App.css";
 
-import { generate_universe } from "../rust/pkg/vintergatan";
+import { generate_universe } from "../rust/pkg";
 
 function App() {
   const [count, setCount] = useState(0);

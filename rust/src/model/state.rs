@@ -7,10 +7,15 @@ use crate::model::universe::Universe;
 const GENERATE_SOLVED: bool = false;
 
 pub struct State {
+    /// The universe as it was generated, used for providing hints
     pub universe: Universe,
+    /// The current board state
     pub board: Board,
+    /// The set of centers and walls that the player needs to solve for
     pub objective: Objective,
+    /// The errors of the current board state, None means that the player isn't done solving
     pub error: Option<BoardError>,
+    /// History of board states
     pub history: History,
 }
 
@@ -19,7 +24,7 @@ impl State {
         let universe = Universe::generate(size, size);
         let objective = Objective::generate(&universe);
         let mut board = Board::new(size, size);
-        let error = Option::default();
+        let error = None;
         let history = History::new();
 
         if GENERATE_SOLVED {
