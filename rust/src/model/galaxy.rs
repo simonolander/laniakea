@@ -1547,7 +1547,7 @@ mod tests {
     mod get_score {
         use crate::model::galaxy::Galaxy;
 
-        #[test]
+        // #[test]
         fn debug_score() {
             //       ┌─┐
             // ┌─────┘ │

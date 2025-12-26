@@ -4,6 +4,7 @@ use crate::model::history::History;
 use crate::model::objective::Objective;
 use crate::model::universe::Universe;
 use serde::Serialize;
+use ts_rs::TS;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{JsValue, UnwrapThrowExt};
 
@@ -58,7 +59,8 @@ impl State {
 }
 
 /// ```rust
-#[derive(Serialize)]
+#[derive(Serialize, TS)]
+#[ts(export)]
 pub struct StateView {
     pub vertical_borders: Vec<Vec<bool>>,
     pub horizontal_borders: Vec<Vec<bool>>,

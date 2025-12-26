@@ -7,8 +7,9 @@ use rand::Rng;
 use serde::Serialize;
 use std::fmt::{Display, Formatter};
 use std::ops::Sub;
+use ts_rs::TS;
 
-#[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Copy, Clone, Hash, Serialize)]
+#[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Copy, Clone, Hash, Serialize, TS)]
 pub struct Position {
     pub row: i32,
     pub column: i32,

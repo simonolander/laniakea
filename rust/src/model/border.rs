@@ -1,8 +1,9 @@
 use crate::model::position::Position;
 use std::cmp::{max, min};
 use serde::Serialize;
+use ts_rs::TS;
 
-#[derive(Debug, Eq, PartialEq, Copy, Clone, Ord, PartialOrd, Hash, Serialize)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone, Ord, PartialOrd, Hash, Serialize, TS)]
 pub struct Border {
     p1: Position,
     p2: Position,
