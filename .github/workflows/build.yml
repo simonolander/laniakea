@@ -19,24 +19,27 @@ jobs:
           ~/.cargo/registry/index/
           ~/.cargo/registry/cache/
           ~/.cargo/git/db/
-          target/
+          rust/target/
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-    - name: Install Trunk
-      run: cargo install --locked trunk
+    - name: Install wasm-pack
+      run: cargo install --locked wasm-pack
       if: steps.cache-cargo.outputs.cache-hit != 'true'
 
-    - name: Add target wasm32-unknown-unknown
-      run: rustup target add wasm32-unknown-unknown
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 22
+        cache: 'npm'
 
-    - name: Build
-      run: cargo build --verbose
+    - name: Install NPM dependencies
+      run: npm ci
 
-    - name: Run tests
-      run: cargo test --verbose
+    - name: Compile Rust to WASM
+      run: npm run build:wasm
 
-    - name: Trunk build
-      run: trunk build --release
+    - name: Build web-app
+      run: npm run build
 
     - name: Upload site artifacts
       uses: actions/upload-pages-artifact@v3
