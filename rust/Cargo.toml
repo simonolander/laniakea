@@ -1,6 +1,6 @@
 # You must change these to your own details.
 [package]
-name = "vintergatan"
+name = "laniakea"
 description = "My super awesome Rust, WebAssembly, and Webpack project!"
 version = "0.1.0"
 authors = ["Simon Olander <simon.olander@gmail.com>"]
@@ -8,7 +8,7 @@ categories = ["wasm"]
 readme = "../README.md"
 edition = "2021"
 license = "GPL-3"
-repository = "https://github.com/simonolander/vintergatan.git"
+repository = "https://github.com/simonolander/laniakea.git"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
