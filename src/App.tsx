@@ -92,12 +92,14 @@ function App() {
           <button
             className={clsx(styles.btn, styles.btnSecondary)}
             onClick={() => dispatch({ type: "UNDO" })}
+            disabled={!state.view.has_past}
           >
             Undo
           </button>
           <button
             className={clsx(styles.btn, styles.btnSecondary)}
             onClick={() => dispatch({ type: "REDO" })}
+            disabled={!state.view.has_future}
           >
             Redo
           </button>
