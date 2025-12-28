@@ -22,7 +22,6 @@ type Action = ToggleAction | { type: "NEW_GAME" };
 
 function makeInitialState(): AppState {
   const gameState = generate_state();
-  console.log(gameState);
   const view = gameState.get_view() as StateView;
   return { gameState, view };
 }
@@ -30,7 +29,6 @@ function makeInitialState(): AppState {
 function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
     case "TOGGLE": {
-      console.log(state);
       const { border } = action;
       state.gameState.toggle_border(
         border.p1.row,
@@ -57,7 +55,6 @@ function App() {
   return (
     <div className={styles.appContainer}>
       <div className={styles.gameLayout}>
-        {/* Main Board Area */}
         <div className={styles.board}>
           <Board
             view={state.view}
