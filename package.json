@@ -6,11 +6,12 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "build:wasm": "wasm-pack build ./rust --target bundler",
+    "build:wasm": "wasm-pack build ./rust --target bundler --release",
     "lint": "eslint .",
     "preview": "vite preview"
   },
   "dependencies": {
+    "clsx": "^2.1.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },

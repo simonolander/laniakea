@@ -147,4 +147,12 @@ mod test {
             }
         }
     }
+
+    #[test]
+    fn from_empty_positions_should_be_zero() {
+        assert_eq!(
+            Rectangle::bounding_rectangle(Vec::new()),
+            Rectangle::default()
+        );
+    }
 }

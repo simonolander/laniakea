@@ -1,0 +1,73 @@
+.board {
+    width: 100%;
+    height: 100%;
+}
+
+.cell {
+    fill: none;
+    &.centerless {
+        fill: #5b2828;
+    }
+}
+
+.outerBorder {
+    fill: none;
+    stroke: #475569;
+}
+
+
+.wallLine {
+    stroke: #5a5a5a10;
+    stroke-linecap: butt;
+}
+
+.wallTouch {
+    pointer-events: all;
+    fill: none;
+}
+
+.wallLine, .wallTouch {
+    cursor: pointer;
+    touch-action: manipulation;
+}
+
+.wallGroup.active .wallLine {
+    stroke: #5a5a5a;
+}
+
+.wallGroup.dangling .wallLine {
+    stroke: #5b2828;
+}
+
+.wallGroup:not(.active):hover .wallLine {
+    stroke: #aaa;
+}
+
+.wallGroup.active:hover .wallLine {
+    stroke: white;
+}
+
+.galaxyCenter {
+    fill: #aaaaaa;
+}
+
+.galaxyCenter text {
+    font-size: 0.325em;
+    fill: black;
+    font-family: monospace;
+    font-weight: 700;
+    dominant-baseline: central;
+    text-anchor: middle;
+}
+
+.galaxyCenter.incorrectSize text {
+    fill: red;
+}
+
+.galaxyCenter.asymmetric {
+    fill: #5b2828;
+}
+
+.galaxyCenter.cut {
+    fill: #5b2828;
+}

@@ -1,8 +1,7 @@
-use crate::model::galaxy::Galaxy;
 use crate::model::position::Position;
 use crate::model::rectangle::Rectangle;
-use std::collections::{HashMap, HashSet};
 use std::collections::hash_map::Iter;
+use std::collections::HashMap;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Tree {
@@ -143,7 +142,7 @@ impl Tree {
                 result.push_str("\n");
             }
         }
-        result
+        result.trim_end().to_string()
     }
 }
 

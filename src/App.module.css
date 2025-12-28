@@ -1,0 +1,90 @@
+/* Main container that centers everything */
+.appContainer {
+    display: flex;
+    min-height: 100vh;
+    width: 100%;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    box-sizing: border-box;
+}
+
+/* Responsive layout: Column on tall screens, Row on wide screens */
+.gameLayout {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+    align-items: center;
+    width: 100%;
+    max-width: 1200px; /* Limits size on ultra-wide monitors */
+}
+
+/* Switch to row layout on wider screens (Desktop/Tablets) */
+@media (orientation: landscape) or (min-width: 768px) {
+    .gameLayout {
+        flex-direction: row;
+        justify-content: center;
+    }
+}
+
+/* The Board Area: Square and responsive */
+.board {
+    aspect-ratio: 1 / 1;
+    width: 100%;
+    max-width: 80vh; /* Prevents board from being taller than the screen */
+    background-color: #1e293b;
+    position: relative;
+}
+
+/* Mobile specific: ensure the board is prominent */
+@media (max-width: 600px) {
+    .board {
+        max-width: 95vw; /* Almost full width on phones */
+    }
+}
+
+/* Button Column */
+.controls {
+    display: flex;
+    flex-direction: row; /* Horizontal on mobile (under board) */
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+/* Stack buttons vertically on wide screens */
+@media (min-width: 768px) {
+    .controls {
+        flex-direction: column;
+        min-width: 150px;
+    }
+}
+
+.btn {
+    padding: 0.75rem 1.5rem;
+    background-color: #3b82f6;
+    border: none;
+    border-radius: 6px;
+    color: white;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.1s, background-color 0.2s;
+    flex: 1; /* Buttons grow to fill space on mobile row */
+    min-width: 100px;
+}
+
+.btn:hover {
+    background-color: #2563eb;
+}
+
+.btn:active {
+    transform: scale(0.95);
+}
+
+.btn-secondary {
+    background-color: #475569;
+}
+
+.grid-cell {
+    border: 0.5px solid #334155;
+}

@@ -1,7 +1,9 @@
 use crate::model::position::Position;
 use std::cmp::{max, min};
+use serde::Serialize;
+use ts_rs::TS;
 
-#[derive(Debug, Eq, PartialEq, Copy, Clone, Ord, PartialOrd, Hash)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone, Ord, PartialOrd, Hash, Serialize, TS)]
 pub struct Border {
     p1: Position,
     p2: Position,
@@ -26,6 +28,10 @@ impl Border {
 
     pub fn is_vertical(&self) -> bool {
         self.p1.row == self.p2.row
+    }
+
+    pub fn is_horizontal(&self) -> bool {
+        !self.is_vertical()
     }
 }
 

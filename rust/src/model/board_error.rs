@@ -1,8 +1,10 @@
 use crate::model::border::Border;
 use crate::model::position::Position;
+use serde::Serialize;
 use std::collections::HashSet;
+use ts_rs::TS;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone, Serialize, TS)]
 pub struct BoardError {
     pub dangling_borders: HashSet<Border>,
     pub incorrect_galaxy_sizes: HashSet<Position>,
