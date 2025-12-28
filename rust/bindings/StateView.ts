@@ -5,4 +5,11 @@ import type { Objective } from "./Objective";
 /**
  * ```rust
  */
-export type StateView = { vertical_borders: Array<Array<boolean>>, horizontal_borders: Array<Array<boolean>>, objective: Objective, error: BoardError | null, has_future: boolean, has_past: boolean, };
+export type StateView = {
+  vertical_borders: Array<Array<boolean>>;
+  horizontal_borders: Array<Array<boolean>>;
+  objective: Objective;
+  error: BoardError | null;
+  has_future: boolean;
+  has_past: boolean;
+};

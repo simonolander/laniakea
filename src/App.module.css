@@ -33,10 +33,7 @@
     width: 100%;
     max-width: 80vh; /* Prevents board from being taller than the screen */
     background-color: #1e293b;
-    border: 2px solid #334155;
-    border-radius: 8px;
     position: relative;
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
 }
 
 /* Mobile specific: ensure the board is prominent */
@@ -86,15 +83,6 @@
 
 .btn-secondary {
     background-color: #475569;
-}
-
-/* Placeholder for the 10x10 grid */
-.grid-placeholder {
-    display: grid;
-    grid-template-columns: repeat(10, 1fr);
-    grid-template-rows: repeat(10, 1fr);
-    height: 100%;
-    width: 100%;
 }
 
 .grid-cell {
