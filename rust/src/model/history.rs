@@ -26,6 +26,7 @@ impl History {
         self.current_index < self.entries.len()
     }
 
+    /// Undo the last action in the history, if any, and return it
     pub fn undo(&mut self) -> Option<&HistoryEntry> {
         if self.has_past() {
             self.current_index -= 1;
@@ -35,6 +36,7 @@ impl History {
         }
     }
 
+    /// Redo the last undone action in the history, if any, and return it
     pub fn redo(&mut self) -> Option<&HistoryEntry> {
         if self.has_future() {
             self.current_index += 1;

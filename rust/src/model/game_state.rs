@@ -72,6 +72,24 @@ impl GameState {
     pub fn check_solution(&mut self) {
         self.error = self.board.compute_error(&self.objective).into();
     }
+
+    pub fn undo(&mut self) {
+        if let Some(entry) = self.history.undo() {
+            match entry {
+                ToggleBorder(border) => self.board.toggle_wall(border.p1(), border.p2()),
+            };
+            self.error = None;
+        }
+    }
+
+    pub fn redo(&mut self) {
+        if let Some(entry) = self.history.redo() {
+            match entry {
+                ToggleBorder(border) => self.board.toggle_wall(border.p1(), border.p2()),
+            };
+            self.error = None;
+        }
+    }
 }
 
 /// ```rust

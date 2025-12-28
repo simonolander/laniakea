@@ -49,6 +49,14 @@ function reducer(state: AppState, action: Action): AppState {
       console.log(state.gameState.get_view().error);
       break;
     }
+    case "UNDO": {
+      state.gameState.undo();
+      break;
+    }
+    case "REDO": {
+      state.gameState.redo();
+      break;
+    }
   }
 
   return {
@@ -81,10 +89,16 @@ function App() {
           >
             Check Solution
           </button>
-          <button className={clsx(styles.btn, styles.btnSecondary)}>
+          <button
+            className={clsx(styles.btn, styles.btnSecondary)}
+            onClick={() => dispatch({ type: "UNDO" })}
+          >
             Undo
           </button>
-          <button className={clsx(styles.btn, styles.btnSecondary)}>
+          <button
+            className={clsx(styles.btn, styles.btnSecondary)}
+            onClick={() => dispatch({ type: "REDO" })}
+          >
             Redo
           </button>
           <button className={clsx(styles.btn, styles.btnSecondary)}>
