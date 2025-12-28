@@ -18,7 +18,13 @@ type ToggleAction = {
   border: Border;
 };
 
-type Action = ToggleAction | { type: "NEW_GAME" };
+type Action =
+  | ToggleAction
+  | { type: "NEW_GAME" }
+  | { type: "CHECK" }
+  | { type: "UNDO" }
+  | { type: "REDO" }
+  | { type: "CLEAR" };
 
 function makeInitialState(): AppState {
   const gameState = generate_state();
@@ -36,6 +42,12 @@ function reducer(state: AppState, action: Action): AppState {
         border.p2.row,
         border.p2.column,
       );
+      break;
+    }
+    case "CHECK": {
+      state.gameState.check_solution();
+      console.log(state.gameState.get_view().error);
+      break;
     }
   }
 
@@ -46,7 +58,7 @@ function reducer(state: AppState, action: Action): AppState {
 }
 
 function App() {
-  let [state, dispatch] = useReducer(reducer, null, makeInitialState);
+  const [state, dispatch] = useReducer(reducer, null, makeInitialState);
 
   useEffect(() => {
     return () => state.gameState.free();
@@ -62,16 +74,20 @@ function App() {
           />
         </div>
 
-        {/* Controls Column/Row */}
         <div className={styles.controls}>
-          <button className={styles.btn}>Check Solution</button>
-          <button className={`${styles.btn} ${styles.btnSecondary}`}>
+          <button
+            className={styles.btn}
+            onClick={() => dispatch({ type: "CHECK" })}
+          >
+            Check Solution
+          </button>
+          <button className={clsx(styles.btn, styles.btnSecondary)}>
             Undo
           </button>
-          <button className={`${styles.btn} ${styles.btnSecondary}`}>
+          <button className={clsx(styles.btn, styles.btnSecondary)}>
             Redo
           </button>
-          <button className={`${styles.btn} ${styles.btnSecondary}`}>
+          <button className={clsx(styles.btn, styles.btnSecondary)}>
             Reset
           </button>
         </div>

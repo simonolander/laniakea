@@ -1,6 +1,7 @@
 use crate::model::board::Board;
 use crate::model::board_error::BoardError;
-use crate::model::history::History;
+use crate::model::border::Border;
+use crate::model::history::{History, HistoryEntry};
 use crate::model::objective::Objective;
 use crate::model::position::Position;
 use crate::model::universe::Universe;
@@ -8,6 +9,7 @@ use serde::Serialize;
 use ts_rs::TS;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{JsValue, UnwrapThrowExt};
+use HistoryEntry::ToggleBorder;
 
 const GENERATE_SOLVED: bool = false;
 
@@ -59,8 +61,16 @@ impl GameState {
     }
 
     pub fn toggle_border(&mut self, r1: i32, c1: i32, r2: i32, c2: i32) {
-        self.board
-            .toggle_wall(Position::new(r1, c1), Position::new(r2, c2));
+        let p1 = Position::new(r1, c1);
+        let p2 = Position::new(r2, c2);
+        let border = Border::new(p1, p2);
+        self.board.toggle_wall(p1, p2);
+        self.history.push(ToggleBorder(border));
+        self.error = None;
+    }
+
+    pub fn check_solution(&mut self) {
+        self.error = self.board.compute_error(&self.objective).into();
     }
 }
 
