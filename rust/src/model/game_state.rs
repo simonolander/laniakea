@@ -2,6 +2,7 @@ use crate::model::board::Board;
 use crate::model::board_error::BoardError;
 use crate::model::history::History;
 use crate::model::objective::Objective;
+use crate::model::position::Position;
 use crate::model::universe::Universe;
 use serde::Serialize;
 use ts_rs::TS;
@@ -11,7 +12,7 @@ use wasm_bindgen::{JsValue, UnwrapThrowExt};
 const GENERATE_SOLVED: bool = false;
 
 #[wasm_bindgen]
-pub struct State {
+pub struct GameState {
     /// The universe as it was generated, used for providing hints
     #[wasm_bindgen(skip)]
     pub universe: Universe,
@@ -30,8 +31,8 @@ pub struct State {
 }
 
 #[wasm_bindgen]
-impl State {
-    pub fn generate(size: usize) -> State {
+impl GameState {
+    pub fn generate(size: usize) -> GameState {
         let universe = Universe::generate(size, size);
         let objective = Objective::generate(&universe);
         let mut board = Board::new(size, size);
@@ -44,7 +45,7 @@ impl State {
             }
         }
 
-        State {
+        GameState {
             universe,
             board,
             objective,
@@ -55,6 +56,11 @@ impl State {
 
     pub fn get_view(&self) -> JsValue {
         serde_wasm_bindgen::to_value(&StateView::from(self)).unwrap_throw()
+    }
+
+    pub fn toggle_border(&mut self, r1: i32, c1: i32, r2: i32, c2: i32) {
+        self.board
+            .toggle_wall(Position::new(r1, c1), Position::new(r2, c2));
     }
 }
 
@@ -70,8 +76,8 @@ pub struct StateView {
     pub has_past: bool,
 }
 
-impl From<&State> for StateView {
-    fn from(state: &State) -> Self {
+impl From<&GameState> for StateView {
+    fn from(state: &GameState) -> Self {
         StateView {
             vertical_borders: state.board.get_vertical_borders(),
             horizontal_borders: state.board.get_horizontal_borders(),

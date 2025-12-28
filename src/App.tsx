@@ -1,20 +1,52 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useReducer, useRef } from "react";
 import styles from "./App.module.css";
 
-import { generate_state, State } from "../rust/pkg";
+import { GameState, generate_state } from "../rust/pkg";
+import type { StateView } from "../rust/bindings/StateView.ts";
+import type { Border } from "../rust/bindings/Border.ts";
+
+type AppState = {
+  gameState: GameState;
+  view: StateView;
+};
+
+type ToggleAction = {
+  type: "TOGGLE";
+  border: Border;
+};
+
+type Action = ToggleAction | { type: "NEW_GAME" };
+
+function makeInitialState(): AppState {
+  const gameState = generate_state();
+  const view = gameState.get_view() as StateView;
+  return { gameState, view };
+}
+
+function reducer(state: AppState, action: Action): AppState {
+  switch (action.type) {
+    case "TOGGLE": {
+      const { border } = action;
+      state.gameState.toggle_border(
+        border.p1.row,
+        border.p1.column,
+        border.p2.row,
+        border.p2.column,
+      );
+    }
+  }
+
+  return {
+    ...state,
+    view: state.gameState.get_view() as StateView,
+  };
+}
 
 function App() {
-  const stateRef = useRef<State | null>(null);
-  console.log(
-    "State generated:",
-    stateRef.current?.get_view(),
-    stateRef.current,
-  );
+  let [state, dispatch] = useReducer(reducer, null, makeInitialState);
 
   useEffect(() => {
-    const state = generate_state();
-    stateRef.current = state;
-    return () => state.free();
+    return () => state.gameState.free();
   }, []);
 
   return (

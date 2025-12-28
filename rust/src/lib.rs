@@ -1,5 +1,5 @@
 use web_sys::wasm_bindgen::prelude::wasm_bindgen;
-use crate::model::state::State;
+use crate::model::game_state::GameState;
 use crate::model::universe::Universe;
 
 mod model;
@@ -18,6 +18,6 @@ pub fn generate_universe() -> Vec<usize> {
 }
 
 #[wasm_bindgen]
-pub fn generate_state() -> State {
-    State::generate(10)
+pub fn generate_state() -> GameState {
+    GameState::generate(10)
 }
