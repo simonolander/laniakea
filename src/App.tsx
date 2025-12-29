@@ -92,6 +92,28 @@ function App() {
         </div>
 
         <div className={styles.controls}>
+          <button
+            className={styles.btn}
+            onClick={() => dispatch({ type: "UNDO" })}
+            disabled={!state.view.has_past}
+          >
+            Undo
+          </button>
+          <button
+            className={styles.btn}
+            onClick={() => dispatch({ type: "REDO" })}
+            disabled={!state.view.has_future}
+          >
+            Redo
+          </button>
+          {!state.view.is_solved && (
+            <button
+              className={styles.btn}
+              onClick={() => dispatch({ type: "HINT" })}
+            >
+              Hint
+            </button>
+          )}
           {state.view.is_solved && (
             <button
               className={styles.btn}
@@ -108,31 +130,6 @@ function App() {
               Check Solution
             </button>
           )}
-          <button
-            className={clsx(styles.btn, styles.btnSecondary)}
-            onClick={() => dispatch({ type: "UNDO" })}
-            disabled={!state.view.has_past}
-          >
-            Undo
-          </button>
-          <button
-            className={clsx(styles.btn, styles.btnSecondary)}
-            onClick={() => dispatch({ type: "REDO" })}
-            disabled={!state.view.has_future}
-          >
-            Redo
-          </button>
-          {!state.view.is_solved && (
-            <button
-              className={clsx(styles.btn, styles.btnSecondary)}
-              onClick={() => dispatch({ type: "HINT" })}
-            >
-              Hint
-            </button>
-          )}
-          <button className={clsx(styles.btn, styles.btnSecondary)}>
-            Reset
-          </button>
         </div>
       </div>
     </div>
