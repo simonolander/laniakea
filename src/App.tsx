@@ -24,6 +24,7 @@ type Action =
   | { type: "CHECK" }
   | { type: "UNDO" }
   | { type: "REDO" }
+  | { type: "HINT" }
   | { type: "CLEAR" };
 
 function makeInitialState(): AppState {
@@ -55,6 +56,10 @@ function reducer(state: AppState, action: Action): AppState {
     }
     case "REDO": {
       state.gameState.redo();
+      break;
+    }
+    case "HINT": {
+      state.gameState.take_hint();
       break;
     }
     case "NEW_GAME": {
@@ -117,6 +122,14 @@ function App() {
           >
             Redo
           </button>
+          {!state.view.is_solved && (
+            <button
+              className={clsx(styles.btn, styles.btnSecondary)}
+              onClick={() => dispatch({ type: "HINT" })}
+            >
+              Hint
+            </button>
+          )}
           <button className={clsx(styles.btn, styles.btnSecondary)}>
             Reset
           </button>
@@ -212,7 +225,18 @@ function Board({ view, onToggle }: BoardProps) {
                 border.p1.column === column &&
                 border.p2.column === column + 1,
             );
+            const objective = view.objective.walls.some(
+              (border) =>
+                border.p1.row === row &&
+                border.p1.column === column &&
+                border.p2.column === column + 1,
+            );
 
+            const onClick = () => {
+              if (!objective) {
+                onToggle({ p1, p2 });
+              }
+            };
             return (
               <g
                 key={`vertical-wall-${row}-${column}`}
@@ -220,8 +244,9 @@ function Board({ view, onToggle }: BoardProps) {
                   boardStyles.wallGroup,
                   active && boardStyles.active,
                   dangling && boardStyles.dangling,
+                  objective && boardStyles.objective,
                 )}
-                onClick={() => onToggle({ p1, p2 })}
+                onClick={onClick}
               >
                 <polygon
                   points={`${x_mid},${y_min} ${x_max},${y_mid} ${x_mid},${y_max} ${x_min},${y_mid}`}
@@ -252,21 +277,33 @@ function Board({ view, onToggle }: BoardProps) {
               p2,
             );
             const dangling = view.error?.dangling_borders.some(
-              (b) =>
-                b.p1.row === row &&
-                b.p1.column === column &&
-                b.p2.row === row + 1,
+              (border) =>
+                border.p1.row === row &&
+                border.p1.column === column &&
+                border.p2.row === row + 1,
+            );
+            const objective = view.objective.walls.some(
+              (border) =>
+                border.p1.row === row &&
+                border.p1.column === column &&
+                border.p2.row === row + 1,
             );
 
+            const onClick = () => {
+              if (!objective) {
+                onToggle({ p1, p2 });
+              }
+            };
             return (
               <g
-                key={`horizontal-wall-${row}-${column}`}
+                key={`vertical-wall-${row}-${column}`}
                 className={clsx(
                   boardStyles.wallGroup,
                   active && boardStyles.active,
                   dangling && boardStyles.dangling,
+                  objective && boardStyles.objective,
                 )}
-                onClick={() => onToggle({ p1, p2 })}
+                onClick={onClick}
               >
                 <polygon
                   points={`${x_mid},${y_min} ${x_max},${y_mid} ${x_mid},${y_max} ${x_min},${y_mid}`}

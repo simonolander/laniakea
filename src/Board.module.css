@@ -35,15 +35,19 @@
     stroke: #5a5a5a;
 }
 
+.wallGroup.objective .wallLine {
+    stroke: #898989;
+}
+
 .wallGroup.dangling .wallLine {
     stroke: #5b2828;
 }
 
-.wallGroup:not(.active):hover .wallLine {
+.wallGroup:not(.active):not(.objective):hover .wallLine {
     stroke: #aaa;
 }
 
-.wallGroup.active:hover .wallLine {
+.wallGroup.active:not(.objective):hover .wallLine {
     stroke: white;
 }
 

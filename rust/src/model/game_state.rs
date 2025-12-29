@@ -5,6 +5,7 @@ use crate::model::history::{History, HistoryEntry};
 use crate::model::objective::Objective;
 use crate::model::position::Position;
 use crate::model::universe::Universe;
+use rand::prelude::IteratorRandom;
 use serde::Serialize;
 use ts_rs::TS;
 use wasm_bindgen::prelude::wasm_bindgen;
@@ -91,6 +92,24 @@ impl GameState {
             match entry {
                 ToggleBorder(border) => self.board.toggle_wall(border.p1(), border.p2()),
             };
+            self.error = None;
+        }
+    }
+
+    pub fn take_hint(&mut self) {
+        let border = self
+            .universe
+            .get_galaxies()
+            .iter()
+            .flat_map(|g| g.get_borders())
+            .filter(|border| self.board.contains(&border.p1()) && self.board.contains(&border.p2()))
+            .filter(|border| !self.objective.walls.contains(border))
+            .filter(|border| !self.board.is_active(border))
+            .choose(&mut rand::thread_rng());
+
+        if let Some(border) = border {
+            self.board.add_wall(border.p1(), border.p2());
+            self.objective.walls.insert(border);
             self.error = None;
         }
     }
