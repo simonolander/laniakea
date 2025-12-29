@@ -3,13 +3,6 @@ import type { BoardError } from "./BoardError";
 import type { Objective } from "./Objective";
 
 /**
- * ```rust
+ * The parts of the state necessary for rendering
  */
-export type StateView = {
-  vertical_borders: Array<Array<boolean>>;
-  horizontal_borders: Array<Array<boolean>>;
-  objective: Objective;
-  error: BoardError | null;
-  has_future: boolean;
-  has_past: boolean;
-};
+export type StateView = { vertical_borders: Array<Array<boolean>>, horizontal_borders: Array<Array<boolean>>, objective: Objective, error: BoardError | null, has_future: boolean, has_past: boolean, is_solved: boolean, };

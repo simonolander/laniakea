@@ -30,7 +30,7 @@ impl Board {
         self.width
     }
 
-    fn contains(&self, position: &Position) -> bool {
+    pub fn contains(&self, position: &Position) -> bool {
         position.row >= 0
             && position.row < self.height as i32
             && position.column >= 0

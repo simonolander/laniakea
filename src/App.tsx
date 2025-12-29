@@ -57,6 +57,10 @@ function reducer(state: AppState, action: Action): AppState {
       state.gameState.redo();
       break;
     }
+    case "NEW_GAME": {
+      state.gameState.free();
+      return makeInitialState();
+    }
   }
 
   return {
@@ -83,12 +87,22 @@ function App() {
         </div>
 
         <div className={styles.controls}>
-          <button
-            className={styles.btn}
-            onClick={() => dispatch({ type: "CHECK" })}
-          >
-            Check Solution
-          </button>
+          {state.view.is_solved && (
+            <button
+              className={styles.btn}
+              onClick={() => dispatch({ type: "NEW_GAME" })}
+            >
+              New game
+            </button>
+          )}
+          {!state.view.is_solved && (
+            <button
+              className={styles.btn}
+              onClick={() => dispatch({ type: "CHECK" })}
+            >
+              Check Solution
+            </button>
+          )}
           <button
             className={clsx(styles.btn, styles.btnSecondary)}
             onClick={() => dispatch({ type: "UNDO" })}

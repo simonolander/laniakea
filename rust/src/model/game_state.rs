@@ -43,7 +43,11 @@ impl GameState {
 
         if GENERATE_SOLVED {
             for border in universe.get_galaxies().iter().flat_map(|g| g.get_borders()) {
-                board.add_wall(border.p1(), border.p2());
+                let p1 = border.p1();
+                let p2 = border.p2();
+                if board.contains(&p1) && board.contains(&p2) {
+                    board.add_wall(p1, p2);
+                }
             }
         }
 
@@ -92,7 +96,7 @@ impl GameState {
     }
 }
 
-/// ```rust
+/// The parts of the state necessary for rendering
 #[derive(Serialize, TS)]
 #[ts(export)]
 pub struct StateView {
@@ -102,6 +106,7 @@ pub struct StateView {
     pub error: Option<BoardError>,
     pub has_future: bool,
     pub has_past: bool,
+    pub is_solved: bool,
 }
 
 impl From<&GameState> for StateView {
@@ -113,6 +118,21 @@ impl From<&GameState> for StateView {
             error: state.error.clone(),
             has_future: state.history.has_future(),
             has_past: state.history.has_past(),
+            is_solved: state
+                .error
+                .as_ref()
+                .map(|it| it.is_error_free())
+                .unwrap_or(false),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::model::game_state::GameState;
+
+    #[test]
+    fn should_generate_state() {
+        GameState::generate(10);
     }
 }
