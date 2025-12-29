@@ -31,11 +31,11 @@
 }
 
 .wallGroup.active .wallLine {
-    stroke: #5a5a5a;
+    stroke: #898989;
 }
 
 .wallGroup.objective .wallLine {
-    stroke: #898989;
+    stroke: #5a5a5a;
 }
 
 .wallGroup.dangling .wallLine {

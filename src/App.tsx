@@ -47,7 +47,6 @@ function reducer(state: AppState, action: Action): AppState {
     }
     case "CHECK": {
       state.gameState.check_solution();
-      console.log(state.gameState.get_view().error);
       break;
     }
     case "UNDO": {
