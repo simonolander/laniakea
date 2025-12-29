@@ -22,11 +22,10 @@
 }
 
 .wallTouch {
-    pointer-events: all;
-    fill: none;
+    fill: transparent;
 }
 
-.wallLine, .wallTouch {
+.wallGroup:not(.objective) :is(.wallLine, .wallTouch) {
     cursor: pointer;
     touch-action: manipulation;
 }

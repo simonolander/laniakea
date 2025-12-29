@@ -245,10 +245,6 @@ function Board({ view, onToggle }: BoardProps) {
                 )}
                 onClick={onClick}
               >
-                <polygon
-                  points={`${x_mid},${y_min} ${x_max},${y_mid} ${x_mid},${y_max} ${x_min},${y_mid}`}
-                  className={boardStyles.wallTouch}
-                />
                 <line
                   x1={x_mid}
                   y1={y_min}
@@ -256,6 +252,10 @@ function Board({ view, onToggle }: BoardProps) {
                   y2={y_max}
                   strokeWidth={WALL_SIZE}
                   className={boardStyles.wallLine}
+                />
+                <polygon
+                  points={`${x_mid},${y_min} ${x_max},${y_mid} ${x_mid},${y_max} ${x_min},${y_mid}`}
+                  className={boardStyles.wallTouch}
                 />
               </g>
             );
@@ -302,10 +302,6 @@ function Board({ view, onToggle }: BoardProps) {
                 )}
                 onClick={onClick}
               >
-                <polygon
-                  points={`${x_mid},${y_min} ${x_max},${y_mid} ${x_mid},${y_max} ${x_min},${y_mid}`}
-                  className={boardStyles.wallTouch}
-                />
                 <line
                   x1={x_min}
                   y1={y_mid}
@@ -313,6 +309,10 @@ function Board({ view, onToggle }: BoardProps) {
                   y2={y_mid}
                   strokeWidth={WALL_SIZE}
                   className={boardStyles.wallLine}
+                />
+                <polygon
+                  points={`${x_mid},${y_min} ${x_max},${y_mid} ${x_mid},${y_max} ${x_min},${y_mid}`}
+                  className={boardStyles.wallTouch}
                 />
               </g>
             );
