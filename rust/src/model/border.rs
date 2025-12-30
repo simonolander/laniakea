@@ -1,6 +1,6 @@
 use crate::model::position::Position;
-use std::cmp::{max, min};
 use serde::Serialize;
+use std::cmp::{max, min};
 use ts_rs::TS;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Ord, PartialOrd, Hash, Serialize, TS)]
@@ -18,6 +18,22 @@ impl Border {
         }
     }
 
+    pub fn up(position: Position) -> Self {
+        Self::new(position, position.up())
+    }
+
+    pub fn left(position: Position) -> Self {
+        Self::new(position, position.left())
+    }
+
+    pub fn right(position: Position) -> Self {
+        Self::new(position, position.right())
+    }
+
+    pub fn down(position: Position) -> Self {
+        Self::new(position, position.down())
+    }
+
     pub fn p1(&self) -> Position {
         self.p1
     }
@@ -32,6 +48,10 @@ impl Border {
 
     pub fn is_horizontal(&self) -> bool {
         !self.is_vertical()
+    }
+
+    pub fn get_positions(&self) -> impl IntoIterator<Item = Position> {
+        [self.p1, self.p2].into_iter()
     }
 }
 

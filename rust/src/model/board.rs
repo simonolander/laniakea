@@ -3,22 +3,54 @@ use crate::model::border::Border;
 use crate::model::galaxy::Galaxy;
 use crate::model::objective::Objective;
 use crate::model::position::{CenterPlacement, Position};
-use itertools::Itertools;
+use crate::model::rectangle::Rectangle;
 use std::collections::{BTreeSet, HashMap, HashSet};
+use std::fmt::{Display, Formatter};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Board {
     width: usize,
     height: usize,
-    borders: HashSet<Border>,
+    /// The borders of the board, including the outer frame and any internal borders.
+    borders: BTreeSet<Border>,
 }
 
 impl Board {
     pub fn new(width: usize, height: usize) -> Self {
+        // Initialize the borders to the large frame around the board
+        let mut borders = BTreeSet::new();
+        for row in 0..height {
+            borders.insert(Border::left(Position::from((row, 0))));
+            borders.insert(Border::left(Position::from((row, width))));
+        }
+        for column in 0..width {
+            borders.insert(Border::up(Position::from((0, column))));
+            borders.insert(Border::up(Position::from((height, column))));
+        }
         Board {
             width,
             height,
-            borders: HashSet::new(),
+            borders,
+        }
+    }
+
+    pub fn from_iter<I: IntoIterator<Item = Border>>(iter: I) -> Self {
+        let borders = BTreeSet::from_iter(iter);
+        let width = borders
+            .iter()
+            .map(|border| border.p2().column)
+            .max()
+            .unwrap_or(0) as usize;
+        let height = borders
+            .iter()
+            .map(|border| border.p2().row)
+            .max()
+            .unwrap_or(0) as usize;
+        println!("{:?}", borders);
+        Board {
+            width,
+            height,
+            borders,
         }
     }
 
@@ -37,16 +69,26 @@ impl Board {
             && position.column < self.width as i32
     }
 
-    fn get_positions(&self) -> impl Iterator<Item = Position> + use<'_> {
-        (0..self.height).into_iter().flat_map(move |row| {
-            (0..self.width)
-                .into_iter()
-                .map(move |col| Position::new(row as i32, col as i32))
-        })
+    fn get_positions(&self) -> impl Iterator<Item = Position> {
+        Rectangle::from_dimensions(self.width, self.height)
+            .positions()
+            .into_iter()
     }
 
     pub fn is_active(&self, border: &Border) -> bool {
-        self.is_wall(border.p1(), border.p2())
+        self.borders.contains(border)
+    }
+
+    pub fn is_border_within_bounds(&self, border: &Border) -> bool {
+        self.contains(&border.p1()) && self.contains(&border.p2())
+    }
+
+    pub fn add_border(&mut self, border: Border) {
+        self.is_border_within_bounds(&border) && self.borders.insert(border);
+    }
+
+    pub fn remove_border(&mut self, border: &Border) {
+        self.is_border_within_bounds(border) && self.borders.remove(border);
     }
 
     /// Adds a wall between [p1] and [p2], returns true if the wall did not previously exist
@@ -83,6 +125,15 @@ impl Board {
 
     pub fn get_borders(&self) -> impl Iterator<Item = Border> + use<'_> {
         self.borders.iter().copied()
+    }
+
+    pub fn get_interior_borders(&self) -> impl Iterator<Item = Border> {
+        self.borders
+            .iter()
+            .copied()
+            .filter(|border| self.is_border_within_bounds(border))
+            .collect::<Vec<_>>()
+            .into_iter()
     }
 
     fn get_galaxies(&self) -> Vec<Galaxy> {
@@ -282,7 +333,7 @@ impl Board {
     /// to the right of the cell (row, column).
     pub fn get_vertical_borders(&self) -> Vec<Vec<bool>> {
         let mut matrix = vec![vec![false; self.width - 1]; self.height];
-        for border in self.get_borders() {
+        for border in self.get_interior_borders() {
             if border.is_vertical() {
                 matrix[border.p1().row as usize][border.p1().column as usize] = true;
             }
@@ -294,18 +345,122 @@ impl Board {
     /// below the cell (row, column).
     pub fn get_horizontal_borders(&self) -> Vec<Vec<bool>> {
         let mut matrix = vec![vec![false; self.width]; self.height - 1];
-        for border in self.get_borders() {
+        for border in self.get_interior_borders() {
             if border.is_horizontal() {
                 matrix[border.p1().row as usize][border.p1().column as usize] = true;
             }
         }
         matrix
     }
+
+    pub fn from_string(string: &str) -> Self {
+        /*
+        ┌───┬─┬───┬─┬─┬───┬─┐
+        ├─┐ └─┼─┐ └─┴─┤   ├─┤
+        ├─┤   └─┼───┐ └─┬─┘ │
+        ├─┘   ┌─┘ ┌─┴─┬─┘   │
+        ├─┐   ├───┤   │   ┌─┤
+        │ └─┐ └─┬─┘ ╷ │ ┌─┘ │
+        │   ├─┬─┘ ╶─┘ └─┤ ┌─┤
+        ├─┐ ├─┤   ┌─╴ ┌─┴─┘ │
+        │ └─┘ └─┐ ╵ ┌─┤     │
+        ├─┐ ┌─┐ ├─┐ ├─┤ ┌─┬─┤
+        └─┴─┴─┴─┴─┴─┴─┴─┴─┴─┘
+         */
+
+        let width = string
+            .lines()
+            .next()
+            .map(|line| (line.chars().count() - 1) / 2)
+            .unwrap_or(1);
+        let height = string.lines().count() - 1;
+        let mut borders = BTreeSet::<Border>::new();
+        for (row, line) in string.lines().enumerate() {
+            for (column, char) in line.chars().step_by(2).enumerate() {
+                let (top, right, bottom, left) = match char {
+                    '┼' => (true, true, true, true),
+                    '├' => (true, true, true, false),
+                    '┴' => (true, true, false, true),
+                    '└' => (true, true, false, false),
+                    '┤' => (true, false, true, true),
+                    '│' => (true, false, true, false),
+                    '┘' => (true, false, false, true),
+                    '╵' => (true, false, false, false),
+                    '┬' => (false, true, true, true),
+                    '┌' => (false, true, true, false),
+                    '─' => (false, true, false, true),
+                    '╶' => (false, true, false, false),
+                    '┐' => (false, false, true, true),
+                    '╷' => (false, false, true, false),
+                    '╴' => (false, false, false, true),
+                    ' ' => (false, false, false, false),
+                    _ => (false, false, false, false),
+                };
+                let bottom_right = Position::from((row, column));
+                if right {
+                    borders.insert(Border::up(bottom_right));
+                }
+                if bottom {
+                    borders.insert(Border::left(bottom_right));
+                }
+            }
+        }
+
+        Self {
+            width,
+            height,
+            borders,
+        }
+    }
+
+    pub fn to_string(&self) -> String {
+        let mut result = String::with_capacity((self.width + 1) * (self.height + 1) * 2);
+        for row in 0..=self.height {
+            let mut result_line = String::new();
+            for column in 0..=self.width {
+                let bottom_right = Position::from((row, column));
+                let top_left = bottom_right.left().up();
+                let top = self.is_active(&Border::right(top_left));
+                let left = self.is_active(&Border::down(top_left));
+                let right = self.is_active(&Border::up(bottom_right));
+                let bottom = self.is_active(&Border::left(bottom_right));
+                let bars = match (top, right, bottom, left) {
+                    (false, false, false, false) => "  ",
+                    (false, false, false, true) => "╴ ",
+                    (false, false, true, false) => "╷ ",
+                    (false, false, true, true) => "┐ ",
+                    (false, true, false, false) => "╶─",
+                    (false, true, false, true) => "──",
+                    (false, true, true, false) => "┌─",
+                    (false, true, true, true) => "┬─",
+                    (true, false, false, false) => "╵ ",
+                    (true, false, false, true) => "┘ ",
+                    (true, false, true, false) => "│ ",
+                    (true, false, true, true) => "┤ ",
+                    (true, true, false, false) => "└─",
+                    (true, true, false, true) => "┴─",
+                    (true, true, true, false) => "├─",
+                    (true, true, true, true) => "┼─",
+                };
+                result_line.push_str(bars);
+            }
+            result.push_str(result_line.trim_end());
+            if row != self.height {
+                result.push('\n');
+            }
+        }
+        result
+    }
+}
+
+impl Display for &Board {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&Board::to_string(&self))
+    }
 }
 
 #[cfg(test)]
 mod tests {
-
     mod get_galaxies {
         use crate::model::board::Board;
 
@@ -315,6 +470,83 @@ mod tests {
             let galaxies = board.get_galaxies();
             assert_eq!(galaxies.len(), 1);
             assert_eq!(galaxies[0].size(), 1);
+        }
+    }
+
+    mod to_string {
+        use crate::model::board::Board;
+        use indoc::indoc;
+
+        #[test]
+        fn empty_board_should_be_empty_string() {
+            let board = Board::new(0, 0);
+            assert_eq!(board.to_string(), "");
+        }
+
+        #[test]
+        fn varous_boards_with_only_frames() {
+            assert_eq!(
+                Board::new(1, 1).to_string(),
+                indoc! {"
+                    ┌─┐
+                    └─┘"
+                }
+            );
+            assert_eq!(
+                Board::new(2, 1).to_string(),
+                indoc! {"
+                    ┌───┐
+                    └───┘"
+                }
+            );
+            assert_eq!(
+                Board::new(1, 2).to_string(),
+                indoc! {"
+                    ┌─┐
+                    │ │
+                    └─┘"
+                }
+            );
+            assert_eq!(
+                Board::new(2, 2).to_string(),
+                indoc! {"
+                    ┌───┐
+                    │   │
+                    └───┘"
+                }
+            );
+            assert_eq!(
+                Board::new(3, 3).to_string(),
+                indoc! {"
+                    ┌─────┐
+                    │     │
+                    │     │
+                    └─────┘"
+                }
+            );
+        }
+    }
+
+    mod from_string {
+        use crate::model::board::Board;
+        use indoc::indoc;
+
+        #[test]
+        fn from_and_to_string_should_return_same_board() {
+            let string = indoc! {"
+                ┌───┬─┬───┬─┬─┬───┬─┐
+                ├─┐ └─┼─┐ └─┴─┤   ├─┤
+                ├─┤   └─┼───┐ └─┬─┘ │
+                ├─┘   ┌─┘ ┌─┴─┬─┘   │
+                ├─┐   ├───┤   │   ┌─┤
+                │ └─┐ └─┬─┘ ╷ │ ┌─┘ │
+                │   ├─┬─┘ ╶─┘ └─┤ ┌─┤
+                ├─┐ ├─┤   ┌─╴ ┌─┴─┘ │
+                │ └─┘ └─┐ ╵ ┌─┤     │
+                ├─┐ ┌─┐ ├─┐ ├─┤ ┌─┬─┤
+                └─┴─┴─┴─┴─┴─┴─┴─┴─┴─┘"
+            };
+            assert_eq!(Board::from_string(string).to_string(), string);
         }
     }
 }

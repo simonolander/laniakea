@@ -6,7 +6,7 @@ use ordered_float::OrderedFloat;
 use rand::prelude::SliceRandom;
 use rand::rngs::StdRng;
 use rand::{random, Rng, SeedableRng};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use std::ops::{Index, IndexMut};
 
@@ -371,8 +371,7 @@ impl Universe {
             }
             if universe.get_score() > best_universe.get_score() {
                 best_universe = universe.clone();
-            }
-            else {
+            } else {
                 universe = best_universe.clone();
             }
         }
@@ -582,11 +581,11 @@ impl Universe {
         *self.grid.iter().flatten().max().unwrap_or(&0)
     }
 
-    pub fn get_ids(&self) -> impl Iterator<Item=&usize> {
+    pub fn get_ids(&self) -> impl Iterator<Item = &usize> {
         self.grid.iter().flatten()
     }
 
-    fn get_entries(&self) -> impl Iterator<Item=(Position, usize)> + '_ {
+    fn get_entries(&self) -> impl Iterator<Item = (Position, usize)> + '_ {
         self.grid.iter().enumerate().flat_map(|(row_index, row)| {
             row.iter()
                 .enumerate()
@@ -669,7 +668,8 @@ impl Universe {
             score -= current_length.powf(straight_line_penalty);
         }
 
-        score += self.get_galaxies()
+        score += self
+            .get_galaxies()
             .iter()
             .map(|g| g.get_score())
             .sum::<f64>();
@@ -752,7 +752,7 @@ impl Universe {
         self.to_string()
     }
 
-    pub fn get_positions(&self) -> impl Iterator<Item=Position> + '_ {
+    pub fn get_positions(&self) -> impl Iterator<Item = Position> + '_ {
         (0..self.get_height())
             .flat_map(move |row| (0..self.get_width()).map(move |col| (row, col)))
             .map(|t| Position::from(t))
@@ -762,6 +762,7 @@ impl Universe {
 impl Display for Universe {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         for row in 0..=self.get_height() {
+            let mut line = String::new();
             for column in 0..=self.get_width() {
                 let bottom_right = Position::from((row, column));
                 let bottom_left = bottom_right.left();
@@ -774,25 +775,26 @@ impl Display for Universe {
                 let bar_bottom =
                     row != self.get_height() && !self.are_neighbours(&bottom_left, &bottom_right);
                 let bar_left = column != 0 && !self.are_neighbours(&top_left, &bottom_left);
-                match (bar_top, bar_right, bar_bottom, bar_left) {
-                    (false, false, false, false) => write!(f, "  ")?,
-                    (false, false, false, true) => write!(f, "╴ ")?,
-                    (false, false, true, false) => write!(f, "╷ ")?,
-                    (false, false, true, true) => write!(f, "┐ ")?,
-                    (false, true, false, false) => write!(f, "╶─")?,
-                    (false, true, false, true) => write!(f, "──")?,
-                    (false, true, true, false) => write!(f, "┌─")?,
-                    (false, true, true, true) => write!(f, "┬─")?,
-                    (true, false, false, false) => write!(f, "╵ ")?,
-                    (true, false, false, true) => write!(f, "┘ ")?,
-                    (true, false, true, false) => write!(f, "│ ")?,
-                    (true, false, true, true) => write!(f, "┤ ")?,
-                    (true, true, false, false) => write!(f, "└─")?,
-                    (true, true, false, true) => write!(f, "┴─")?,
-                    (true, true, true, false) => write!(f, "├─")?,
-                    (true, true, true, true) => write!(f, "┼─")?,
-                }
+                line.push_str(match (bar_top, bar_right, bar_bottom, bar_left) {
+                    (false, false, false, false) => "  ",
+                    (false, false, false, true) => "╴ ",
+                    (false, false, true, false) => "╷ ",
+                    (false, false, true, true) => "┐ ",
+                    (false, true, false, false) => "╶─",
+                    (false, true, false, true) => "──",
+                    (false, true, true, false) => "┌─",
+                    (false, true, true, true) => "┬─",
+                    (true, false, false, false) => "╵ ",
+                    (true, false, false, true) => "┘ ",
+                    (true, false, true, false) => "│ ",
+                    (true, false, true, true) => "┤ ",
+                    (true, true, false, false) => "└─",
+                    (true, true, false, true) => "┴─",
+                    (true, true, true, false) => "├─",
+                    (true, true, true, true) => "┼─",
+                })
             }
+            f.write_str(line.trim_end())?;
             if row != self.get_height() {
                 write!(f, "\n")?;
             }

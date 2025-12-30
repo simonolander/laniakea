@@ -29,6 +29,9 @@ type Action =
 
 function makeInitialState(): AppState {
   const gameState = generate_state();
+  console.debug(gameState.objective_to_string(), "(objective)")
+  console.debug(gameState.board_to_string(), "(board)");
+  console.debug(gameState.universe_to_string(), "(solution)");
   const view = gameState.get_view() as StateView;
   return { gameState, view };
 }

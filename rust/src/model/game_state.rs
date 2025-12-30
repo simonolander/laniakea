@@ -4,6 +4,7 @@ use crate::model::border::Border;
 use crate::model::history::{History, HistoryEntry};
 use crate::model::objective::Objective;
 use crate::model::position::Position;
+use crate::model::solver::Solver;
 use crate::model::universe::Universe;
 use rand::prelude::IteratorRandom;
 use serde::Serialize;
@@ -49,6 +50,14 @@ impl GameState {
                 if board.contains(&p1) && board.contains(&p2) {
                     board.add_wall(p1, p2);
                 }
+            }
+        }
+
+        let mut solver = Solver::new(size, size, &objective);
+        let solution = solver.solve().unwrap();
+        for border in solution.borders {
+            if board.contains(&border.p1()) && board.contains(&border.p2()) {
+                board.add_wall(border.p1(), border.p2());
             }
         }
 
@@ -113,6 +122,18 @@ impl GameState {
             self.error = None;
         }
     }
+
+    pub fn objective_to_string(&self) -> String {
+        self.objective.to_string()
+    }
+
+    pub fn board_to_string(&self) -> String {
+        self.board.to_string()
+    }
+
+    pub fn universe_to_string(&self) -> String {
+        self.universe.to_string()
+    }
 }
 
 /// The parts of the state necessary for rendering
@@ -148,10 +169,11 @@ impl From<&GameState> for StateView {
 
 #[cfg(test)]
 mod tests {
-    use crate::model::game_state::GameState;
+    use crate::model::game_state::{GameState, StateView};
 
     #[test]
     fn should_generate_state() {
-        GameState::generate(10);
+        let state = GameState::generate(10);
+        StateView::from(&state);
     }
 }
