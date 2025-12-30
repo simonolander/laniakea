@@ -6,7 +6,7 @@ use crate::model::rectangle::Rectangle;
 use rand::Rng;
 use serde::Serialize;
 use std::fmt::{Display, Formatter};
-use std::ops::Sub;
+use std::ops::{Index, IndexMut, Sub};
 use ts_rs::TS;
 
 #[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Copy, Clone, Hash, Serialize, TS)]

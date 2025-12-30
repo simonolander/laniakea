@@ -21,6 +21,11 @@ impl Rectangle {
             max_column,
         }
     }
+    pub fn from_dimensions(width: usize, height: usize) -> Rectangle {
+        assert!(width > 0, "width must be positive");
+        assert!(height > 0, "height must be positive");
+        Self::new(0, height as i32, 0, width as i32)
+    }
 
     /// Returns the smallest rectangle that contains the given positions
     pub fn bounding_rectangle(positions: impl IntoIterator<Item = Position>) -> Rectangle {

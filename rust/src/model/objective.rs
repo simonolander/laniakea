@@ -32,4 +32,109 @@ impl Objective {
 
         Objective { centers, walls }
     }
+
+    pub fn from_string(string: &str) -> Self {
+        let centers = string
+            .lines()
+            .skip(1)
+            .enumerate()
+            .flat_map(|(half_row, line)| {
+                line.chars()
+                    .skip(1)
+                    .enumerate()
+                    .filter_map(move |(index, char)| {
+                        if char == '●' {
+                            let half_column = (index - 1) / 2;
+                            Some(GalaxyCenter::from(Position::from((half_row, half_column))))
+                        } else {
+                            None
+                        }
+                    })
+            })
+            .collect();
+        Objective {
+            centers,
+            walls: HashSet::new(),
+        }
+    }
+}
+
+impl From<Position> for GalaxyCenter {
+    fn from(value: Position) -> Self {
+        GalaxyCenter {
+            position: value,
+            size: None,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    mod from_string {
+        use crate::model::objective::{GalaxyCenter, Objective};
+        use crate::model::position::Position;
+        use indoc::indoc;
+        use std::collections::HashSet;
+
+        #[test]
+        pub fn should_parse_objective() {
+            let objective = Objective::from_string(indoc! {
+                "
+                ┌───┬───┬───┬───┬───┬───┬───┬───┬───┬───┐
+                │         ●               ●       ●     │
+                ├   ●   ·   ·   ·   ·   ·   ·   ·   · ● ┤
+                │           ●                           │
+                ├   ·   ·   ·   ·   · ● ·   ·   ·   ·   ┤
+                │                                       │
+                ├ ● ·   ·   ·   ·   ·   ·   ·   ·   ●   ┤
+                │                                       │
+                ├   ·   ·   ·   ·   ·   ·   ·   ·   ·   ┤
+                │                       ●               │
+                ├   ·   ·   ·   ·   ·   ·   ·   ·   ·   ┤
+                │             ●                 ●       │
+                ├   ·   ·   ·   ·   ·   ·   ·   ·   ·   ┤
+                │   ●                   ●             ● │
+                ├   ·   ·   ·   ·   ·   ·   ·   ·   ·   ┤
+                │ ●                                     │
+                ├   ·   ·   ·   ·   ·   ·   ·   ·   ·   ┤
+                │             ●       ●     ●           │
+                ├   ·   ·   ·   ·   ·   ·   ·   ·   · ● ┤
+                │       ●           ●                   │
+                └───┴───┴───┴───┴───┴───┴───┴───┴───┴───┘
+                "
+            });
+            assert_eq!(
+                objective.centers,
+                HashSet::from_iter(
+                    vec![
+                        (0, 4),
+                        (0, 12),
+                        (0, 16),
+                        (1, 1),
+                        (1, 18),
+                        (2, 5),
+                        (3, 10),
+                        (5, 0),
+                        (5, 17),
+                        (8, 11),
+                        (10, 6),
+                        (10, 15),
+                        (12, 1),
+                        (12, 11),
+                        (12, 18),
+                        (14, 0),
+                        (16, 6),
+                        (16, 10),
+                        (16, 13),
+                        (17, 18),
+                        (18, 3),
+                        (18, 9),
+                    ]
+                    .into_iter()
+                    .map(Position::from)
+                    .map(GalaxyCenter::from)
+                )
+            )
+        }
+    }
 }

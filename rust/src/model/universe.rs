@@ -1,4 +1,5 @@
 use crate::model::galaxy::Galaxy;
+use crate::model::grid::Grid;
 use crate::model::position::Position;
 use crate::model::vec2::Vec2;
 use itertools::Itertools;

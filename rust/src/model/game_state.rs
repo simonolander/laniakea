@@ -4,6 +4,7 @@ use crate::model::border::Border;
 use crate::model::history::{History, HistoryEntry};
 use crate::model::objective::Objective;
 use crate::model::position::Position;
+use crate::model::solver::Solver;
 use crate::model::universe::Universe;
 use rand::prelude::IteratorRandom;
 use serde::Serialize;
@@ -49,6 +50,14 @@ impl GameState {
                 if board.contains(&p1) && board.contains(&p2) {
                     board.add_wall(p1, p2);
                 }
+            }
+        }
+
+        let mut solver = Solver::new(size, size, &objective);
+        let solution = solver.solve();
+        for border in solution.borders {
+            if board.contains(&border.p1()) && board.contains(&border.p2()) {
+                board.add_wall(border.p1(), border.p2());
             }
         }
 
