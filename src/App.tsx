@@ -80,6 +80,14 @@ function App() {
     return () => state.gameState.free();
   }, []);
 
+  useEffect(() => {
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+    };
+    window.addEventListener("beforeunload", beforeUnload);
+    return () => window.removeEventListener("beforeunload", beforeUnload);
+  }, []);
+
   return (
     <div className={styles.appContainer}>
       <div className={styles.gameLayout}>
