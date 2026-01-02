@@ -42,12 +42,14 @@
     stroke: #5b2828;
 }
 
-.wallGroup:not(.active):not(.objective):hover .wallLine {
-    stroke: #aaa;
-}
+@media (hover: hover) {
+    .wallGroup:not(.active):not(.objective):hover .wallLine {
+        stroke: #aaa;
+    }
 
-.wallGroup.active:not(.objective):hover .wallLine {
-    stroke: white;
+    .wallGroup.active:not(.objective):hover .wallLine {
+        stroke: white;
+    }
 }
 
 .galaxyCenter {
