@@ -52,6 +52,7 @@ impl Objective {
                     })
             })
             .collect();
+        // let borders = 
         Objective {
             centers,
             walls: HashSet::new(),

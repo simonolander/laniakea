@@ -2,7 +2,7 @@ use crate::model::border::Border;
 use crate::model::objective::{GalaxyCenter, Objective};
 use crate::model::position::Position;
 use crate::model::rectangle::Rectangle;
-use itertools::{all, Itertools};
+use itertools::Itertools;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 type GalaxyId = usize;
@@ -76,6 +76,9 @@ impl Solver {
                 continue;
             };
             if self.add_borders_between_known_galaxies().unwrap() {
+                continue;
+            };
+            if self.exclude_unreachable_galaxies().unwrap() {
                 continue;
             };
             break;
@@ -171,7 +174,7 @@ impl Solver {
         Ok(changed)
     }
 
-    fn exclude_unreachable_galaxies(&mut self) -> Result<bool, _> {
+    fn exclude_unreachable_galaxies(&mut self) -> Result<bool, Contradiction> {
         let mut changed = false;
         let all_cells =
             BTreeSet::from_iter(Rectangle::from_dimensions(self.width, self.height).positions());
@@ -189,7 +192,7 @@ impl Solver {
                     if self.borders.get(&border).copied().unwrap_or(false) {
                         continue;
                     }
-                    if visited.insert(position) {
+                    if visited.insert(neighbour) {
                         queue.push_back(neighbour);
                     }
                 }
@@ -198,9 +201,9 @@ impl Solver {
                 let galaxy_ids = self.possible_galaxy_ids.get_mut(&position).unwrap();
                 changed |= galaxy_ids.remove(&galaxy_id);
                 if galaxy_ids.is_empty() {
-                    return Err(Contradiction)
+                    return Err(Contradiction);
                 }
-            };
+            }
         }
         Ok(changed)
     }
@@ -208,6 +211,36 @@ impl Solver {
 
 #[cfg(test)]
 mod tests {
+
+    mod solve {
+        use std::collections::BTreeSet;
+        use crate::model::objective::Objective;
+        use crate::model::solver::Solver;
+        use indoc::indoc;
+        use crate::model::border::Border;
+        use crate::model::position::Position;
+
+        #[test]
+        fn should_successfully_solve_examples() {
+            let obj = Objective::from_string(indoc! {"
+                ┌───┬───┬───┬───┐
+                │             ● │
+                ├   ·   · ● ·   ┤
+                │               │
+                ├   ·   ·   ·   ┤
+                │             ● │
+                └───┴───┴───┴───┘
+            "});
+            let mut solver = Solver::new(4, 3, &obj);
+            let solution = solver.solve();
+            assert_eq!(solution.borders, BTreeSet::from_iter(vec![
+                Border::right(Position::new(0, 0)),
+                Border::right(Position::new(0, 2)),
+                Border::right(Position::new(1, 1)),
+            ]))
+        }
+    }
+
     mod mirror_borders {
         use crate::model::objective::{GalaxyCenter, Objective};
         use crate::model::position::Position;
