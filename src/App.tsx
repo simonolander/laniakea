@@ -88,6 +88,13 @@ function App() {
     return () => window.removeEventListener("beforeunload", beforeUnload);
   }, []);
 
+  useEffect(() => {
+    const promise = navigator.wakeLock.request("screen").catch(console.warn);
+    return () => {
+      promise.then((sentinel) => sentinel?.release().catch(console.warn));
+    };
+  }, []);
+
   return (
     <div className={styles.appContainer}>
       <div className={styles.gameLayout}>
