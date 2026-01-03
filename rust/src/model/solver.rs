@@ -83,8 +83,12 @@ impl Solver {
             };
             break;
         }
-        let borders = self
-            .borders
+        let borders = self.get_borders();
+        Solution { borders }
+    }
+
+    fn get_borders(&self) -> BTreeSet<Border> {
+        self.borders
             .iter()
             .filter_map(
                 |(&border, &active)| {
@@ -95,8 +99,7 @@ impl Solver {
                     }
                 },
             )
-            .collect();
-        Solution { borders }
+            .collect()
     }
 
     fn get_cells_with_certain_galaxy_id(&self) -> impl IntoIterator<Item = (Position, GalaxyId)> {
@@ -213,12 +216,10 @@ impl Solver {
 mod tests {
 
     mod solve {
-        use std::collections::BTreeSet;
+        use crate::model::board::Board;
         use crate::model::objective::Objective;
         use crate::model::solver::Solver;
         use indoc::indoc;
-        use crate::model::border::Border;
-        use crate::model::position::Position;
 
         #[test]
         fn should_successfully_solve_examples() {
@@ -227,17 +228,24 @@ mod tests {
                 │             ● │
                 ├   ·   · ● ·   ┤
                 │               │
-                ├   ·   ·   ·   ┤
-                │             ● │
+                ├ ● ·   ·   ·   ┤
+                │     ●         │
+                ├   ·   ·   ●   ┤
+                │               │
                 └───┴───┴───┴───┘
             "});
-            let mut solver = Solver::new(4, 3, &obj);
+            let mut solver = Solver::new(4, 4, &obj);
             let solution = solver.solve();
-            assert_eq!(solution.borders, BTreeSet::from_iter(vec![
-                Border::right(Position::new(0, 0)),
-                Border::right(Position::new(0, 2)),
-                Border::right(Position::new(1, 1)),
-            ]))
+            assert_eq!(
+                Board::from_iter(solver.get_borders()).to_string(),
+                indoc! {"
+                    ┌─┬───┬─┐
+                    │ ├─┐ └─┤
+                    │ │ ├───┤
+                    │ │ │   │
+                    └─┴─┴───┘"
+                }
+            )
         }
     }
 

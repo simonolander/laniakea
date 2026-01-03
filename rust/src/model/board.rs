@@ -32,6 +32,26 @@ impl Board {
         }
     }
 
+    pub fn from_iter<I: IntoIterator<Item = Border>>(iter: I) -> Self {
+        let borders = BTreeSet::from_iter(iter);
+        let width = borders
+            .iter()
+            .map(|border| border.p2().column)
+            .max()
+            .unwrap_or(0) as usize;
+        let height = borders
+            .iter()
+            .map(|border| border.p2().row)
+            .max()
+            .unwrap_or(0) as usize;
+        println!("{:?}", borders);
+        Board {
+            width,
+            height,
+            borders,
+        }
+    }
+
     pub fn get_width(&self) -> usize {
         self.width
     }
