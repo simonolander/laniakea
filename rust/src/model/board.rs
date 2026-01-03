@@ -125,6 +125,15 @@ impl Board {
         self.borders.iter().copied()
     }
 
+    pub fn get_interior_borders(&self) -> impl Iterator<Item = Border> {
+        self.borders
+            .iter()
+            .copied()
+            .filter(|border| self.is_border_within_bounds(border))
+            .collect::<Vec<_>>()
+            .into_iter()
+    }
+
     fn get_galaxies(&self) -> Vec<Galaxy> {
         let mut galaxies = Vec::new();
         let mut remaining_positions: BTreeSet<Position> = self.get_positions().collect();
@@ -322,7 +331,7 @@ impl Board {
     /// to the right of the cell (row, column).
     pub fn get_vertical_borders(&self) -> Vec<Vec<bool>> {
         let mut matrix = vec![vec![false; self.width - 1]; self.height];
-        for border in self.get_borders() {
+        for border in self.get_interior_borders() {
             if border.is_vertical() {
                 matrix[border.p1().row as usize][border.p1().column as usize] = true;
             }
@@ -334,7 +343,7 @@ impl Board {
     /// below the cell (row, column).
     pub fn get_horizontal_borders(&self) -> Vec<Vec<bool>> {
         let mut matrix = vec![vec![false; self.width]; self.height - 1];
-        for border in self.get_borders() {
+        for border in self.get_interior_borders() {
             if border.is_horizontal() {
                 matrix[border.p1().row as usize][border.p1().column as usize] = true;
             }

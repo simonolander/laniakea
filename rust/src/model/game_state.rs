@@ -157,10 +157,11 @@ impl From<&GameState> for StateView {
 
 #[cfg(test)]
 mod tests {
-    use crate::model::game_state::GameState;
+    use crate::model::game_state::{GameState, StateView};
 
     #[test]
     fn should_generate_state() {
-        GameState::generate(10);
+        let state = GameState::generate(10);
+        StateView::from(&state);
     }
 }
