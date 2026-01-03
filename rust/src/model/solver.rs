@@ -72,10 +72,10 @@ impl Solver {
 
     pub fn solve(&mut self) -> Solution {
         loop {
-            if self.mirror_borders().unwrap() {
+            if self.add_borders_between_known_galaxies().unwrap() {
                 continue;
             };
-            if self.add_borders_between_known_galaxies().unwrap() {
+            if self.mirror_borders().unwrap() {
                 continue;
             };
             if self.exclude_unreachable_galaxies().unwrap() {
@@ -193,6 +193,9 @@ impl Solver {
                 for neighbour in position.adjacent() {
                     let border = Border::new(position, neighbour);
                     if self.borders.get(&border).copied().unwrap_or(false) {
+                        continue;
+                    }
+                    if !self.possible_galaxy_ids.get(&neighbour).unwrap().contains(&galaxy_id) {
                         continue;
                     }
                     if visited.insert(neighbour) {
